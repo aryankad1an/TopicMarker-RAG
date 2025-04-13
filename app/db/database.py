@@ -14,5 +14,5 @@ Base = declarative_base()
 
 def init_db():
     # Import models so they are registered with Base.metadata
-    from app.models import lesson
+    from app.models import schemas
     Base.metadata.create_all(bind=engine)

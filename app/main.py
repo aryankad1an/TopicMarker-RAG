@@ -1,15 +1,18 @@
 from fastapi import FastAPI
-from app.routers import lessons
-from app.db import database
+from app.routers import rag
+from app.services.vectorstore import init_pinecone
 
-app = FastAPI(title="Lesson Generator API")
+app = FastAPI(title="Lesson Plan RAG Backend")
 
-# Include lesson routes
-app.include_router(lessons.router)
+@app.on_event("startup")
+async def startup_event():
+    init_pinecone()
 
-# Initialize the database
-database.init_db()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+# '/' ROUTE 
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Lesson Plan RAG Backend!"}
+
+
+app.include_router(rag.router, prefix="/rag", tags=["RAG"])

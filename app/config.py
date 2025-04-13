@@ -1,16 +1,17 @@
-from pydantic import BaseSettings
-from dotenv import load_dotenv
-import os
-
-# Load variables from .env file
-load_dotenv()
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./test.db")
-    LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
-    LLM_API_ENDPOINT: str = os.getenv("LLM_API_ENDPOINT", "https://api.llmprovider.com")
+    pinecone_api_key: str
+    pinecone_environment: str
+    pinecone_index_name: str
+    hf_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    hf_llm_model: str = "google/flan-t5-base"
+    duckduckgo_result_count: int = 10
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parent.parent / ".env",
+        extra="allow"  # 👈 this tells Pydantic to ignore unrelated variables
+    )
 
 settings = Settings()

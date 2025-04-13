@@ -1,7 +1,9 @@
 fastapi
-uvicorn
-requests
-beautifulsoup4
-sqlalchemy
-pydantic
+uvicorn[standard]
 python-dotenv
+pydantic
+pinecone-client
+sentence-transformers
+transformers
+crawl4ai
+duckduckgo-search

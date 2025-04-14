@@ -1,10 +1,9 @@
 from sentence_transformers import SentenceTransformer
-from app.config import settings
 
-_model = None
+model = SentenceTransformer("all-MiniLM-L6-v2")  # 384-d
 
 def get_embedding(text: str) -> list[float]:
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(settings.hf_embedding_model)
-    return _model.encode(text).tolist()
+    embedding = model.encode(text)
+    # Pad to 1024-dim
+    padded_embedding = embedding.tolist() + [0.0] * (1024 - len(embedding))
+    return padded_embedding

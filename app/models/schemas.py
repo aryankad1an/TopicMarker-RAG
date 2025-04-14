@@ -21,3 +21,10 @@ class RefineRequest(BaseModel):
 
 class RefineResponse(BaseModel):
     answer: str
+
+class TopicItem(BaseModel):
+    topic: str
+    subtopics: List[str]
+
+class TopicHierarchyResponse(BaseModel):
+    topics: List[TopicItem]

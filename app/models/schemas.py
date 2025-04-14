@@ -28,3 +28,14 @@ class TopicItem(BaseModel):
 
 class TopicHierarchyResponse(BaseModel):
     topics: List[TopicItem]
+
+class GenerateMDXRequest(BaseModel):
+    topics: List[TopicItem]
+    top_k: int = 5
+
+class MDXTopicResponse(BaseModel):
+    topic: str
+    mdx: str
+
+class GenerateMDXResponse(BaseModel):
+    results: List[MDXTopicResponse]

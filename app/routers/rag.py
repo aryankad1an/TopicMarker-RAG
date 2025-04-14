@@ -1,42 +1,23 @@
 import uuid
 import asyncio
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from app.models.schemas import (
     QueryRequest, TopicResponse,
     GenerateMDXRequest, MDXResponse,
-    RefineRequest, RefineResponse, TopicHierarchyResponse
+    RefineRequest, RefineResponse, TopicHierarchyResponse, TopicItem,
+    GenerateMDXResponse, MDXTopicResponse
 )
 from app.services.search import search_urls
-from app.services.crawler import extract_text_from_url
 from app.utils.chunker import chunk_text
 from app.services.embeddings import get_embedding
 from app.services.vectorstore import upsert_embeddings, query_similar, embed_and_store
 from app.services.llm import extract_topics, generate_mdx, refine_content, generate_topic_hierarchy
 from app.utils.response import success_response, error_response
 from app.services.gemini_llm import generate_content
+from typing import List
+from app.services.crawler import scrape_with_crawl4ai
 
 router = APIRouter()
-
-BATCH_SIZE = 50
-
-# @router.post(
-#     "/search-topics",
-#     response_model=TopicHierarchyResponse,
-#     summary="Generate lesson‑plan topics & subtopics via LLM"
-# )
-# async def search_topics(request: QueryRequest):
-#     if not request.query.strip():
-#         return error_response("Query cannot be empty", status_code=400)
-
-#     try:
-#         hierarchy = generate_topic_hierarchy(request.query)
-#     except Exception as e:
-#         return error_response("LLM error", status_code=500, details=str(e))
-
-#     if not hierarchy:
-#         return error_response("No topics returned from LLM", status_code=404)
-
-#     return success_response({"topics": hierarchy})
 
 @router.post(
     "/search-topics",
@@ -68,24 +49,56 @@ async def search_topics(request: QueryRequest):
 
     return success_response({"topics": hierarchy})
 
-
-@router.post("/generate-mdx", response_model=MDXResponse)
-def generate_mdx_endpoint(request: GenerateMDXRequest):
+@router.post(
+    "/generate-mdx",
+)
+async def generate_mdx_endpoint(request: Request):
     try:
-        all_texts = []
-        for topic in request.topics:
-            emb = get_embedding(topic)
-            matches = query_similar(emb, top_k=request.top_k)
-            for m in matches:
-                all_texts.append(m['text'])
+        data= await request.json()
+        print("Received data:", data)
 
-        combined = "\n\n".join(all_texts)
-        mdx = generate_mdx(combined, request.topics)
+        data=data.get("topics", [])
+        print("Parsed data:", data)
 
-        return success_response({"mdx": mdx})
+        # results: List[MDXTopicResponse] = []
+
+        all_urls = []
+        for item in data:
+            topic = item.get("topic")
+            subtopics = item.get("subtopics", [])
+
+            # 1) discover relevant URLs for the main topic
+            urls = search_urls(topic,2)
+            all_urls.extend(urls)
+
+        #     all_texts: List[str] = []
+        #     for url in urls:
+        #         # 2) scrape the page
+        #         raw = scrape_with_crawl4ai(url)
+        #         all_texts.append(raw)
+
+                # 3) preprocess (clean / chunk)
+                # cleaned = preprocess_text(raw)
+
+                # 4) embed + retrieve similar passages
+                # emb = get_embedding(cleaned)
+                # matches = query_similar(emb, top_k=req.top_k)
+                # for m in matches:
+                #     all_texts.append(m["text"])
+
+            # 5) combine & generate MDX (pass subtopics along)
+            # combined = "\n\n".join(all_texts)
+            # mdx = generate_mdx(combined, topic=topic, subtopics=subtopics)
+
+            # results.append(MDXTopicResponse(topic=topic, mdx=mdx))
+
+        return {"results": all_urls}
+
     except Exception as e:
-        return error_response("Failed to generate MDX", status_code=500, details=str(e))
-
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate MDX: {e}"
+        )
 
 @router.post("/refine", response_model=RefineResponse)
 def refine(request: RefineRequest):

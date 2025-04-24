@@ -15,9 +15,14 @@ from app.services.llm import extract_topics, generate_mdx, refine_content, gener
 from app.utils.response import success_response, error_response
 from app.services.gemini_llm import generate_content
 from typing import List
+from googlesearch import search
 from app.services.crawler import scrape_with_crawl4ai
+from pydantic import BaseModel
+from app.models.schemas import SearchRequest
+from app.services.crawler import generate_mdx_document
 
 router = APIRouter()
+
 
 @router.post(
     "/search-topics",
@@ -49,57 +54,93 @@ async def search_topics(request: QueryRequest):
 
     return success_response({"topics": hierarchy})
 
-@router.post(
-    "/generate-mdx",
-)
-async def generate_mdx_endpoint(request: Request):
+# @router.post(
+#     "/generate-mdx",
+# )
+# async def generate_mdx_endpoint(request: Request):
+#     try:
+#         data= await request.json()
+#         print("Received data:", data)
+
+#         data=data.get("topics", [])
+#         print("Parsed data:", data)
+
+#         # results: List[MDXTopicResponse] = []
+
+#         all_urls = []
+#         for item in data:
+#             topic = item.get("topic")
+#             subtopics = item.get("subtopics", [])
+
+#             # 1) discover relevant URLs for the main topic
+#             urls = search_urls(topic,2)
+#             all_urls.extend(urls)
+
+#         #     all_texts: List[str] = []
+#         #     for url in urls:
+#         #         # 2) scrape the page
+#         #         raw = scrape_with_crawl4ai(url)
+#         #         all_texts.append(raw)
+
+#                 # 3) preprocess (clean / chunk)
+#                 # cleaned = preprocess_text(raw)
+
+#                 # 4) embed + retrieve similar passages
+#                 # emb = get_embedding(cleaned)
+#                 # matches = query_similar(emb, top_k=req.top_k)
+#                 # for m in matches:
+#                 #     all_texts.append(m["text"])
+
+#             # 5) combine & generate MDX (pass subtopics along)
+#             # combined = "\n\n".join(all_texts)
+#             # mdx = generate_mdx(combined, topic=topic, subtopics=subtopics)
+
+#             # results.append(MDXTopicResponse(topic=topic, mdx=mdx))
+
+#         return {"results": all_urls}
+
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Failed to generate MDX: {e}"
+#         )
+
+@router.post("/generate-mdx")
+async def generate_mdx_endpoint(query: SearchRequest):
     try:
-        data= await request.json()
-        print("Received data:", data)
+        all_urls = set()
 
-        data=data.get("topics", [])
-        print("Parsed data:", data)
+        for topic_data in query.topics:
+            # Search main topic
+            for url in search(topic_data.topic, num_results=query.top_k):
+                all_urls.add(url)
 
-        # results: List[MDXTopicResponse] = []
+            # Search subtopics
+            for subtopic in topic_data.subtopics:
+                for url in search(subtopic, num_results=query.top_k):
+                    all_urls.add(url)
+        
+        # Convert topics to list of dictionaries (required by generate_mdx_from_links)
+        topics_data = [topic.model_dump() for topic in query.topics]
+        
+        # Generate MDX from the collected URLs and topics
+        mdx_code = generate_mdx_document(list(all_urls), topics_data)
 
-        all_urls = []
-        for item in data:
-            topic = item.get("topic")
-            subtopics = item.get("subtopics", [])
-
-            # 1) discover relevant URLs for the main topic
-            urls = search_urls(topic,2)
-            all_urls.extend(urls)
-
-        #     all_texts: List[str] = []
-        #     for url in urls:
-        #         # 2) scrape the page
-        #         raw = scrape_with_crawl4ai(url)
-        #         all_texts.append(raw)
-
-                # 3) preprocess (clean / chunk)
-                # cleaned = preprocess_text(raw)
-
-                # 4) embed + retrieve similar passages
-                # emb = get_embedding(cleaned)
-                # matches = query_similar(emb, top_k=req.top_k)
-                # for m in matches:
-                #     all_texts.append(m["text"])
-
-            # 5) combine & generate MDX (pass subtopics along)
-            # combined = "\n\n".join(all_texts)
-            # mdx = generate_mdx(combined, topic=topic, subtopics=subtopics)
-
-            # results.append(MDXTopicResponse(topic=topic, mdx=mdx))
-
-        return {"results": all_urls}
+        return {
+            "status": "success",
+            "url_count": len(all_urls),
+            "urls": list(all_urls),
+            "mdx_code": mdx_code  # Return MDX code in the response
+        }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate MDX: {e}"
-        )
-
+        return {
+            "status": "error",
+            "message": "Failed to generate URLs",
+            "details": str(e)
+        }
+       
+        
 @router.post("/refine", response_model=RefineResponse)
 def refine(request: RefineRequest):
     try:

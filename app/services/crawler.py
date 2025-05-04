@@ -1,14 +1,21 @@
 import asyncio
 import re
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+import os
+from crawl4ai import AsyncWebCrawler, CacheMode
 from app.services.gemini_llm import generate_content
+from app.services.crawler_config import get_browser_config, get_crawler_config
+
+# Disable Node.js debugger
+os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
 
 async def scrape_with_crawl4ai(url) -> str:
     """
     Scrape a single URL using crawl4ai and return the markdown content.
     """
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(url)
+    browser_config = get_browser_config(headless=True, verbose=False)
+    async with AsyncWebCrawler(config=browser_config) as crawler:
+        crawler_config = get_crawler_config()
+        result = await crawler.arun(url, config=crawler_config)
         print(f"Scraped {url}: {result.markdown[:300]}...")  # Print first 300 chars
         return result.markdown
 
@@ -17,12 +24,13 @@ async def crawl_url_with_crawl4ai(url) -> str:
     Scrape a single URL using crawl4ai and return the markdown content.
     """
     try:
-        async with AsyncWebCrawler() as crawler:
-            config = CrawlerRunConfig(
+        browser_config = get_browser_config(headless=True, verbose=False)
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            crawler_config = get_crawler_config(
                 cache_mode=CacheMode.BYPASS,  # Ensure fresh content
                 word_count_threshold=1  # Ensure we get all content
             )
-            result = await crawler.arun(url, config=config)
+            result = await crawler.arun(url, config=crawler_config)
             if result.success:
                 return result.markdown
             else:
@@ -92,6 +100,13 @@ def clean_markdown(text):
 
     # 5. Ensure proper spacing for lists
     text = re.sub(r'\n(- |\* |[0-9]+\. )', r'\n\n\1', text)
+
+    # 6. Ensure no literal \n characters in the text (they should be actual newlines)
+    text = text.replace('\\n', '\n')
+
+    # 7. Remove any extra newlines at the beginning of the front matter
+    if text.startswith('\n---'):
+        text = text.replace('\n---', '---', 1)
 
     return text.strip()
 
@@ -210,6 +225,8 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 5) -> d
     Returns:
         Dictionary with MDX formatted content and metadata
     """
+    # Disable debugger for this operation
+    os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
     # First, check if the LLM has up-to-date information on the topic
     currency_check_prompt = f"""
     Do you have up-to-date information about the topic: "{topic}"?
@@ -369,16 +386,17 @@ async def direct_crawl_to_llm_async(url: str, query: str) -> str:
         The LLM-generated content
     """
     try:
-        # Configure the crawler
-        async with AsyncWebCrawler() as crawler:
-            config = CrawlerRunConfig(
+        # Configure the crawler with debugger disabled
+        browser_config = get_browser_config(headless=True, verbose=False)
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            crawler_config = get_crawler_config(
                 cache_mode=CacheMode.BYPASS,  # Ensure fresh content
                 word_count_threshold=1  # Ensure we get all content
             )
 
             # Crawl the URL
             print(f"Crawling {url}...")
-            result = await crawler.arun(url, config=config)
+            result = await crawler.arun(url, config=crawler_config)
 
             if not result.success:
                 return f"Error crawling {url}: {result.error_message}"
@@ -429,6 +447,9 @@ async def direct_multi_crawl_to_llm_async(urls: list, query: str) -> str:
         The LLM-generated content
     """
     try:
+        # Disable debugger for this operation
+        os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
+
         # Crawl all URLs
         print(f"Crawling {len(urls)} URLs...")
         scraped_data = await crawl_urls_async(urls)
@@ -470,80 +491,85 @@ def direct_multi_crawl_to_llm(urls: list, query: str) -> str:
     """
     return asyncio.run(direct_multi_crawl_to_llm_async(urls, query))
 
-async def generate_mdx_from_url_async(url: str, topic: str) -> str:
+async def generate_mdx_from_url_async(url: str, topic: str, use_llm_knowledge: bool = True) -> str:
     """
     Generate MDX content directly from a URL using crawl4ai and LLM.
+    Uses the same approach as generate_single_topic_mdx_async but for a specific URL.
 
     Args:
         url: The URL to crawl
         topic: The topic for the MDX content
+        use_llm_knowledge: Whether to use the LLM's existing knowledge if crawling fails
 
     Returns:
         The MDX content
     """
+    # Disable debugger for this operation
+    os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
+
     try:
-        # Configure the crawler
-        async with AsyncWebCrawler() as crawler:
-            config = CrawlerRunConfig(
-                cache_mode=CacheMode.BYPASS,  # Ensure fresh content
-                word_count_threshold=1  # Ensure we get all content
-            )
+        # Crawl the URL directly using the crawl_url_with_crawl4ai function
+        print(f"Crawling {url}...")
+        content = await crawl_url_with_crawl4ai(url)
 
-            # Crawl the URL
-            print(f"Crawling {url}...")
-            result = await crawler.arun(url, config=config)
+        # Check if crawling failed
+        crawling_failed = content.startswith("Error scraping")
 
-            if not result.success:
-                return f"Error crawling {url}: {result.error_message}"
+        # If crawling failed and we're not using LLM knowledge, return error
+        if crawling_failed and not use_llm_knowledge:
+            return f"Error crawling {url}: {content}"
 
-            # Get the markdown content
-            markdown_content = result.markdown
+        # Generate MDX using Gemini
+        import datetime
+        current_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
-            # Generate MDX using Gemini
-            import datetime
-            current_date = datetime.datetime.now().strftime('%Y-%m-%d')
+        # Adjust prompt based on whether we have content or need to use LLM knowledge
+        if crawling_failed:
+            print(f"Crawling failed for {url}, using LLM knowledge instead")
+            reference_text = f"Use your knowledge to create content about this topic: {topic}"
+        else:
+            reference_text = f"Use the following content as reference:\n{content}"
 
-            prompt = f"""
-            You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+        prompt = f"""
+        You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
 
-            Use the following content as reference:
-            {markdown_content}
+        {reference_text}
 
-            IMPORTANT: DO NOT wrap your response in ```mdx code blocks. I need the raw MDX content directly.
+        IMPORTANT: DO NOT wrap your response in ```mdx code blocks. I need the raw MDX content directly.
 
-            Your response MUST be valid MDX format starting with:
-            ---
-            title: "{topic}"
-            description: "Comprehensive guide about {topic}"
-            date: "{current_date}"
-            ---
+        Your response MUST be valid MDX format starting with:
+        ---
+        title: "{topic}"
+        description: "Comprehensive guide about {topic}"
+        date: "{current_date}"
+        ---
 
-            Then include a main heading with the topic name, followed by well-structured content with:
-            - Proper heading hierarchy (##, ###, etc.)
-            - Paragraphs separated by double newlines (blank line between paragraphs)
-            - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
-            - Code blocks using triple backticks with language specification if applicable
-            - A summary or conclusion section at the end
+        Then include a main heading with the topic name, followed by well-structured content with:
+        - Proper heading hierarchy (##, ###, etc.)
+        - Paragraphs separated by double newlines (blank line between paragraphs)
+        - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
+        - Code blocks using triple backticks with language specification if applicable
+        - A summary or conclusion section at the end
 
-            CRITICAL FORMATTING REQUIREMENTS:
-            - DO NOT include ```mdx and ``` around your content
-            - DO NOT escape quotes or newlines (no \" or \\n)
-            - Use proper MDX formatting with double newlines between paragraphs and sections
-            - Make sure the MDX is properly formatted and would render correctly in a React/Next.js application
-            - Include appropriate MDX components like <Callout> or <Tabs> if they would enhance the content
-            - Ensure headings have a blank line before them
-            - Ensure lists have a blank line before them
-            """
+        CRITICAL FORMATTING REQUIREMENTS:
+        - DO NOT include ```mdx and ``` around your content
+        - DO NOT escape quotes or newlines (no \" or \\n)
+        - Use proper MDX formatting with double newlines between paragraphs and sections
+        - Make sure the MDX is properly formatted and would render correctly in a React/Next.js application
+        - Include appropriate MDX components like <Callout> or <Tabs> if they would enhance the content
+        - Ensure headings have a blank line before them
+        - Ensure lists have a blank line before them
+        """
 
-            # Generate content with LLM
-            mdx_content = generate_content(prompt)
+        # Generate content with LLM
+        mdx_content = generate_content(prompt)
 
-            # Clean and format the content
-            mdx_content = clean_markdown(mdx_content)
+        # Clean and format the content
+        mdx_content = clean_markdown(mdx_content)
 
-            # Ensure the content has proper front matter
-            if not mdx_content.startswith("---"):
-                mdx_content = f"""---
+        # Ensure the content has proper front matter
+        if not mdx_content.startswith("---"):
+            mdx_content = f"""---
 title: "{topic}"
 description: "Comprehensive guide about {topic}"
 date: "{current_date}"
@@ -551,23 +577,92 @@ date: "{current_date}"
 
 {mdx_content}"""
 
-            # Add a newline after the front matter if needed
-            if "---\n---" in mdx_content:
-                mdx_content = mdx_content.replace("---\n---", "---\n\n---")
+        # Add a newline after the front matter if needed
+        if "---\n---" in mdx_content:
+            mdx_content = mdx_content.replace("---\n---", "---\n\n---")
 
-            # Ensure there's a newline after the front matter section
-            if "---\n#" in mdx_content:
-                mdx_content = mdx_content.replace("---\n#", "---\n\n#")
+        # Ensure there's a newline after the front matter section
+        if "---\n#" in mdx_content:
+            mdx_content = mdx_content.replace("---\n#", "---\n\n#")
 
-            # Ensure there's a double newline after the front matter closing
-            mdx_content = re.sub(r'---\n([^-\n])', r'---\n\n\1', mdx_content)
+        # Ensure there's a double newline after the front matter closing
+        mdx_content = re.sub(r'---\n([^-\n])', r'---\n\n\1', mdx_content)
 
-            return mdx_content
+        return mdx_content
 
     except Exception as e:
-        return f"Error generating MDX from URL: {e}"
+        if use_llm_knowledge:
+            # If an exception occurred but we're allowed to use LLM knowledge, try to generate content without crawling
+            try:
+                print(f"Error crawling {url}, falling back to LLM knowledge")
+                import datetime
+                current_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
-def generate_mdx_from_url(url: str, topic: str) -> str:
+                prompt = f"""
+                You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+
+                Use your knowledge to create content about this topic.
+
+                IMPORTANT: DO NOT wrap your response in ```mdx code blocks. I need the raw MDX content directly.
+
+                Your response MUST be valid MDX format starting with:
+                ---
+                title: "{topic}"
+                description: "Comprehensive guide about {topic}"
+                date: "{current_date}"
+                ---
+
+                Then include a main heading with the topic name, followed by well-structured content with:
+                - Proper heading hierarchy (##, ###, etc.)
+                - Paragraphs separated by double newlines (blank line between paragraphs)
+                - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
+                - Code blocks using triple backticks with language specification if applicable
+                - A summary or conclusion section at the end
+
+                CRITICAL FORMATTING REQUIREMENTS:
+                - DO NOT include ```mdx and ``` around your content
+                - DO NOT escape quotes or newlines (no \" or \\n)
+                - Use proper MDX formatting with double newlines between paragraphs and sections
+                - Make sure the MDX is properly formatted and would render correctly in a React/Next.js application
+                - Include appropriate MDX components like <Callout> or <Tabs> if they would enhance the content
+                - Ensure headings have a blank line before them
+                - Ensure lists have a blank line before them
+                """
+
+                # Generate content with LLM
+                mdx_content = generate_content(prompt)
+
+                # Clean and format the content
+                mdx_content = clean_markdown(mdx_content)
+
+                # Ensure the content has proper front matter
+                if not mdx_content.startswith("---"):
+                    mdx_content = f"""---
+title: "{topic}"
+description: "Comprehensive guide about {topic}"
+date: "{current_date}"
+---
+
+{mdx_content}"""
+
+                # Add a newline after the front matter if needed
+                if "---\n---" in mdx_content:
+                    mdx_content = mdx_content.replace("---\n---", "---\n\n---")
+
+                # Ensure there's a newline after the front matter section
+                if "---\n#" in mdx_content:
+                    mdx_content = mdx_content.replace("---\n#", "---\n\n#")
+
+                # Ensure there's a double newline after the front matter closing
+                mdx_content = re.sub(r'---\n([^-\n])', r'---\n\n\1', mdx_content)
+
+                return mdx_content
+            except Exception as inner_e:
+                return f"Error generating MDX from URL: {e}. Fallback also failed: {inner_e}"
+        else:
+            return f"Error generating MDX from URL: {e}"
+
+def generate_mdx_from_url(url: str, topic: str, use_llm_knowledge: bool = True) -> str:
     """
     Generate MDX content directly from a URL using crawl4ai and LLM.
     This is a synchronous wrapper around the async function.
@@ -575,8 +670,201 @@ def generate_mdx_from_url(url: str, topic: str) -> str:
     Args:
         url: The URL to crawl
         topic: The topic for the MDX content
+        use_llm_knowledge: Whether to use the LLM's existing knowledge if crawling fails
 
     Returns:
         The MDX content
     """
-    return asyncio.run(generate_mdx_from_url_async(url, topic))
+    return asyncio.run(generate_mdx_from_url_async(url, topic, use_llm_knowledge))
+
+async def generate_mdx_from_urls_async(urls: list, topic: str, use_llm_knowledge: bool = True) -> str:
+    """
+    Generate MDX content from multiple URLs using crawl4ai and LLM.
+    Similar to generate_single_topic_mdx_async but for specific URLs.
+
+    Args:
+        urls: List of URLs to crawl
+        topic: The topic for the MDX content
+        use_llm_knowledge: Whether to use the LLM's existing knowledge if crawling fails
+
+    Returns:
+        The MDX content
+    """
+    # Disable debugger for this operation
+    os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
+
+    try:
+        # Crawl all URLs
+        print(f"Crawling {len(urls)} URLs...")
+        scraped_data = await crawl_urls_async(urls)
+
+        # Combine all content
+        all_content = ""
+        for url, content in scraped_data.items():
+            if isinstance(content, str) and not content.startswith("Error scraping"):
+                all_content += f"Content from {url}:\n{content}\n\n"
+
+        # Check if we got any valid content
+        if not all_content.strip():
+            if not use_llm_knowledge:
+                return f"Error: Could not extract valid content from any of the provided URLs"
+            else:
+                print(f"No valid content extracted from URLs, using LLM knowledge instead")
+                # Continue with LLM knowledge
+
+        # Generate MDX using Gemini
+        import datetime
+        current_date = datetime.datetime.now().strftime('%Y-%m-%d')
+
+        # Adjust prompt based on whether we have content or need to use LLM knowledge
+        if not all_content.strip():
+            reference_text = f"Use your knowledge to create content about this topic: {topic}"
+        else:
+            reference_text = f"Use the following content as reference:\n{all_content}"
+
+        prompt = f"""
+        You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+
+        {reference_text}
+
+        IMPORTANT: DO NOT wrap your response in ```mdx code blocks. I need the raw MDX content directly.
+
+        Your response MUST be valid MDX format starting with:
+        ---
+        title: "{topic}"
+        description: "Comprehensive guide about {topic}"
+        date: "{current_date}"
+        ---
+
+        Then include a main heading with the topic name, followed by well-structured content with:
+        - Proper heading hierarchy (##, ###, etc.)
+        - Paragraphs separated by double newlines (blank line between paragraphs)
+        - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
+        - Code blocks using triple backticks with language specification if applicable
+        - A summary or conclusion section at the end
+
+        CRITICAL FORMATTING REQUIREMENTS:
+        - DO NOT include ```mdx and ``` around your content
+        - DO NOT escape quotes or newlines (no \" or \\n)
+        - Use proper MDX formatting with double newlines between paragraphs and sections
+        - Make sure the MDX is properly formatted and would render correctly in a React/Next.js application
+        - Include appropriate MDX components like <Callout> or <Tabs> if they would enhance the content
+        - Ensure headings have a blank line before them
+        - Ensure lists have a blank line before them
+        """
+
+        # Generate content with LLM
+        mdx_content = generate_content(prompt)
+
+        # Clean and format the content
+        mdx_content = clean_markdown(mdx_content)
+
+        # Ensure the content has proper front matter
+        if not mdx_content.startswith("---"):
+            mdx_content = f"""---
+title: "{topic}"
+description: "Comprehensive guide about {topic}"
+date: "{current_date}"
+---
+
+{mdx_content}"""
+
+        # Add a newline after the front matter if needed
+        if "---\n---" in mdx_content:
+            mdx_content = mdx_content.replace("---\n---", "---\n\n---")
+
+        # Ensure there's a newline after the front matter section
+        if "---\n#" in mdx_content:
+            mdx_content = mdx_content.replace("---\n#", "---\n\n#")
+
+        # Ensure there's a double newline after the front matter closing
+        mdx_content = re.sub(r'---\n([^-\n])', r'---\n\n\1', mdx_content)
+
+        return mdx_content
+
+    except Exception as e:
+        if use_llm_knowledge:
+            # If an exception occurred but we're allowed to use LLM knowledge, try to generate content without crawling
+            try:
+                print(f"Error crawling URLs, falling back to LLM knowledge")
+                import datetime
+                current_date = datetime.datetime.now().strftime('%Y-%m-%d')
+
+                prompt = f"""
+                You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+
+                Use your knowledge to create content about this topic.
+
+                IMPORTANT: DO NOT wrap your response in ```mdx code blocks. I need the raw MDX content directly.
+
+                Your response MUST be valid MDX format starting with:
+                ---
+                title: "{topic}"
+                description: "Comprehensive guide about {topic}"
+                date: "{current_date}"
+                ---
+
+                Then include a main heading with the topic name, followed by well-structured content with:
+                - Proper heading hierarchy (##, ###, etc.)
+                - Paragraphs separated by double newlines (blank line between paragraphs)
+                - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
+                - Code blocks using triple backticks with language specification if applicable
+                - A summary or conclusion section at the end
+
+                CRITICAL FORMATTING REQUIREMENTS:
+                - DO NOT include ```mdx and ``` around your content
+                - DO NOT escape quotes or newlines (no \" or \\n)
+                - Use proper MDX formatting with double newlines between paragraphs and sections
+                - Make sure the MDX is properly formatted and would render correctly in a React/Next.js application
+                - Include appropriate MDX components like <Callout> or <Tabs> if they would enhance the content
+                - Ensure headings have a blank line before them
+                - Ensure lists have a blank line before them
+                """
+
+                # Generate content with LLM
+                mdx_content = generate_content(prompt)
+
+                # Clean and format the content
+                mdx_content = clean_markdown(mdx_content)
+
+                # Ensure the content has proper front matter
+                if not mdx_content.startswith("---"):
+                    mdx_content = f"""---
+title: "{topic}"
+description: "Comprehensive guide about {topic}"
+date: "{current_date}"
+---
+
+{mdx_content}"""
+
+                # Add a newline after the front matter if needed
+                if "---\n---" in mdx_content:
+                    mdx_content = mdx_content.replace("---\n---", "---\n\n---")
+
+                # Ensure there's a newline after the front matter section
+                if "---\n#" in mdx_content:
+                    mdx_content = mdx_content.replace("---\n#", "---\n\n#")
+
+                # Ensure there's a double newline after the front matter closing
+                mdx_content = re.sub(r'---\n([^-\n])', r'---\n\n\1', mdx_content)
+
+                return mdx_content
+            except Exception as inner_e:
+                return f"Error generating MDX from URLs: {e}. Fallback also failed: {inner_e}"
+        else:
+            return f"Error generating MDX from URLs: {e}"
+
+def generate_mdx_from_urls(urls: list, topic: str, use_llm_knowledge: bool = True) -> str:
+    """
+    Generate MDX content from multiple URLs using crawl4ai and LLM.
+    This is a synchronous wrapper around the async function.
+
+    Args:
+        urls: List of URLs to crawl
+        topic: The topic for the MDX content
+        use_llm_knowledge: Whether to use the LLM's existing knowledge if crawling fails
+
+    Returns:
+        The MDX content
+    """
+    return asyncio.run(generate_mdx_from_urls_async(urls, topic, use_llm_knowledge))

@@ -51,3 +51,32 @@ class SearchRequest(BaseModel):
 class SingleTopicRequest(BaseModel):
     topic: str
     num_results: int = 5
+
+class DirectCrawlRequest(BaseModel):
+    url: str
+    query: str
+
+class DirectMultiCrawlRequest(BaseModel):
+    urls: List[str]
+    query: str
+
+class GenerateMDXFromURLRequest(BaseModel):
+    url: str
+    topic: str
+    use_llm_knowledge: bool = True
+
+class GenerateMDXFromURLsRequest(BaseModel):
+    urls: List[str]
+    topic: str
+    use_llm_knowledge: bool = True
+
+class MDXContent(BaseModel):
+    """
+    Model for MDX content with proper handling of newlines.
+    """
+    content: str
+
+    class Config:
+        json_encoders = {
+            str: lambda v: v.replace('\n', '\\n')
+        }

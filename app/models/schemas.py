@@ -39,7 +39,7 @@ class MDXTopicResponse(BaseModel):
 
 class GenerateMDXResponse(BaseModel):
     results: List[MDXTopicResponse]
-    
+
 class Topic(BaseModel):
     topic: str
     subtopics: List[str]
@@ -47,3 +47,7 @@ class Topic(BaseModel):
 class SearchRequest(BaseModel):
     topics: List[Topic]
     top_k: int = 3
+
+class SingleTopicRequest(BaseModel):
+    topic: str
+    num_results: int = 5

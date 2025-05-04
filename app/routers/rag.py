@@ -7,19 +7,13 @@ from app.models.schemas import (
     RefineRequest, RefineResponse, TopicHierarchyResponse, TopicItem,
     GenerateMDXResponse, MDXTopicResponse
 )
-from app.services.search import search_urls
-from app.utils.chunker import chunk_text
-from app.services.embeddings import get_embedding
-from app.services.vectorstore import upsert_embeddings, query_similar, embed_and_store
-from app.services.llm import extract_topics, generate_mdx, refine_content, generate_topic_hierarchy
 from app.utils.response import success_response, error_response
-from app.services.gemini_llm import generate_content
-from typing import List
+from app.services.gemini_llm import generate_content, refine_content_with_gemini
 from googlesearch import search
-from app.services.crawler import scrape_with_crawl4ai
-from pydantic import BaseModel
-from app.models.schemas import SearchRequest
-from app.services.crawler import generate_mdx_document
+from app.models.schemas import SearchRequest, SingleTopicRequest
+from app.services.crawler import (
+    generate_single_topic_mdx_async, generate_mdx_document_async
+)
 
 router = APIRouter()
 
@@ -40,7 +34,7 @@ async def search_topics(request: QueryRequest):
         {{
         "topic": "Main Topic",
         "subtopics": ["Subtopic 1", "Subtopic 2"]
-        }},   
+        }},
         ...
         ]
         """
@@ -119,12 +113,12 @@ async def generate_mdx_endpoint(query: SearchRequest):
             for subtopic in topic_data.subtopics:
                 for url in search(subtopic, num_results=query.top_k):
                     all_urls.add(url)
-        
+
         # Convert topics to list of dictionaries (required by generate_mdx_from_links)
         topics_data = [topic.model_dump() for topic in query.topics]
-        
-        # Generate MDX from the collected URLs and topics
-        mdx_code = generate_mdx_document(list(all_urls), topics_data)
+
+        # Generate MDX from the collected URLs and topics using the async version directly
+        mdx_code = await generate_mdx_document_async(list(all_urls), topics_data)
 
         return {
             "status": "success",
@@ -139,12 +133,188 @@ async def generate_mdx_endpoint(query: SearchRequest):
             "message": "Failed to generate URLs",
             "details": str(e)
         }
-       
-        
+
+
 @router.post("/refine", response_model=RefineResponse)
-def refine(request: RefineRequest):
+async def refine(request: RefineRequest):
     try:
-        ans = refine_content(request.mdx, request.question)
+        # Use the Gemini-based refine function instead of the transformers-based one
+        ans = refine_content_with_gemini(request.mdx, request.question)
         return success_response({"answer": ans})
     except Exception as e:
         return error_response("Failed to refine content", status_code=500, details=str(e))
+
+@router.post("/single-topic")
+async def generate_single_topic(request: SingleTopicRequest):
+    """
+    Generate MDX content for a single topic.
+
+    This endpoint:
+    1. Takes a single topic name
+    2. Checks if the LLM has up-to-date information
+    3. If not, automatically finds and crawls relevant websites
+    4. Also searches for additional relevant web content if needed
+    5. Generates a comprehensive, properly formatted MDX document
+
+    The response has no double newlines to ensure clean formatting.
+    """
+    try:
+        if not request.topic.strip():
+            return error_response("Topic cannot be empty", status_code=400)
+
+        # Generate MDX for the single topic using the async version directly
+        result = await generate_single_topic_mdx_async(
+            topic=request.topic,
+            num_results=request.num_results
+        )
+
+        # Check if there was an error
+        if "error" in result:
+            return {
+                "status": "error",
+                "message": "Failed to generate valid MDX content",
+                "details": result["error"],
+                "crawled_websites": result.get("crawled_websites", []),
+                "used_llm_knowledge": result.get("has_current_info", False)
+            }
+
+        return {
+            "status": "success",
+            "topic": request.topic,
+            "mdx_content": result["mdx_content"],
+            "crawled_websites": result.get("crawled_websites", []),
+            "used_llm_knowledge": result.get("has_current_info", False)
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": "Failed to generate MDX for the topic",
+            "details": str(e)
+        }
+
+@router.post("/direct-crawl")
+async def direct_crawl_endpoint(request: Request):
+    """
+    Direct pipeline from crawl4ai to LLM without BeautifulSoup processing.
+
+    This endpoint:
+    1. Takes a URL and a query
+    2. Crawls the URL using crawl4ai
+    3. Sends the content directly to the LLM with the query
+    4. Returns the LLM-generated content
+    """
+    try:
+        data = await request.json()
+        url = data.get("url")
+        query = data.get("query")
+
+        if not url or not query:
+            return {
+                "status": "error",
+                "message": "URL and query are required",
+            }
+
+        # Import here to avoid circular imports
+        from app.services.crawler import direct_crawl_to_llm_async
+
+        # Use the direct crawl-to-LLM pipeline
+        result = await direct_crawl_to_llm_async(url, query)
+
+        return {
+            "status": "success",
+            "url": url,
+            "query": query,
+            "result": result
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": "Failed to process direct crawl to LLM",
+            "details": str(e)
+        }
+
+@router.post("/direct-multi-crawl")
+async def direct_multi_crawl_endpoint(request: Request):
+    """
+    Direct pipeline from crawl4ai to LLM for multiple URLs without BeautifulSoup processing.
+
+    This endpoint:
+    1. Takes a list of URLs and a query
+    2. Crawls all URLs using crawl4ai
+    3. Sends the combined content directly to the LLM with the query
+    4. Returns the LLM-generated content
+    """
+    try:
+        data = await request.json()
+        urls = data.get("urls", [])
+        query = data.get("query")
+
+        if not urls or not query:
+            return {
+                "status": "error",
+                "message": "URLs and query are required",
+            }
+
+        # Import here to avoid circular imports
+        from app.services.crawler import direct_multi_crawl_to_llm_async
+
+        # Use the direct multi-crawl-to-LLM pipeline
+        result = await direct_multi_crawl_to_llm_async(urls, query)
+
+        return {
+            "status": "success",
+            "urls": urls,
+            "query": query,
+            "result": result
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": "Failed to process direct multi-crawl to LLM",
+            "details": str(e)
+        }
+
+@router.post("/generate-mdx-from-url")
+async def generate_mdx_from_url_endpoint(request: Request):
+    """
+    Generate MDX content directly from a URL using crawl4ai and LLM.
+
+    This endpoint:
+    1. Takes a URL and a topic
+    2. Crawls the URL using crawl4ai
+    3. Generates MDX content using the LLM
+    4. Returns the MDX content
+    """
+    try:
+        data = await request.json()
+        url = data.get("url")
+        topic = data.get("topic")
+
+        if not url or not topic:
+            return {
+                "status": "error",
+                "message": "URL and topic are required",
+            }
+
+        # Import here to avoid circular imports
+        from app.services.crawler import generate_mdx_from_url_async
+
+        # Generate MDX from the URL
+        mdx_content = await generate_mdx_from_url_async(url, topic)
+
+        return {
+            "status": "success",
+            "url": url,
+            "topic": topic,
+            "mdx_content": mdx_content
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": "Failed to generate MDX from URL",
+            "details": str(e)
+        }

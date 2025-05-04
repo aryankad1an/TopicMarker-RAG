@@ -1,6 +1,5 @@
-from pinecone import Pinecone, ServerlessSpec, PineconeApiException
+from pinecone import Pinecone, ServerlessSpec
 from app.config import settings
-from pinecone.exceptions import PineconeException
 # from langchain.vectorstores import Pinecone as PineconeStore
 # from langchain.embeddings.openai import OpenAIEmbeddings
 # from langchain_pinecone import PineconeVectorStore
@@ -11,10 +10,7 @@ from langchain_openai import OpenAIEmbeddings
 
 
 # Instantiate Pinecone client
-pc = Pinecone(
-    api_key=settings.pinecone_api_key,
-    environment=settings.pinecone_environment  # e.g., "us-east-1"
-)
+pc = Pinecone(api_key=settings.pinecone_api_key)
 
 _index = None
 
@@ -35,10 +31,14 @@ def init_pinecone():
                     region="us-east-1"
                 )
             )
-    except PineconeApiException as e:
-        if e.status != 409:
-            raise  # Ignore "already exists" errors
+    except Exception as e:
+        # Check if it's an "already exists" error (status code 409)
+        if hasattr(e, 'status') and e.status != 409:
+            raise  # Re-raise if it's not an "already exists" error
+        elif not hasattr(e, 'status'):
+            raise  # Re-raise if it doesn't have a status attribute
 
+    # Get the index using the new API
     _index = pc.Index(index_name)
 
 

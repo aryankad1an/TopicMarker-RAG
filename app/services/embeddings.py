@@ -1,9 +1,9 @@
-# from sentence_transformers import SentenceTransformer
-
-# model = SentenceTransformer("all-MiniLM-L6-v2")  # 384-d
-
 def get_embedding(text: str) -> list[float]:
-    # embedding = model.encode(text)
-    # # Pad to 1024-dim
-    # padded_embedding = embedding.tolist() + [0.0] * (1024 - len(embedding))
+    """
+    Placeholder implementation for embeddings.
+
+    In a real implementation, this would use a model like sentence-transformers
+    to generate embeddings for the text.
+    """
+    # This is just a placeholder - not actually generating embeddings
     return "padded_embedding"

@@ -1,0 +1,11 @@
+# Test output files
+output/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Coverage reports
+.coverage
+htmlcov/

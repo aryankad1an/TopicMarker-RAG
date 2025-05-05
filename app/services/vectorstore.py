@@ -67,7 +67,7 @@ def upsert_embeddings(vectors: list[dict]):
         raise RuntimeError("Pinecone index not initialized.")
     _index.upsert(vectors=vectors)
 
-def query_similar(vector: list[float], top_k: int = 5):
+def query_similar(vector: list[float], top_k: int = 2):
     """
     Returns top_k most similar items to the input vector.
     Each result has: id, text (from metadata), score.

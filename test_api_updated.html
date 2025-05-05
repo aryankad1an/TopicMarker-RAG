@@ -70,34 +70,7 @@
     <h1>Test TopicMarker RAG API</h1>
 
     <div class="container">
-        <div class="card">
-            <h2>Direct Crawl to LLM</h2>
-            <div class="form-group">
-                <label for="url">URL:</label>
-                <input type="text" id="url" value="https://docs.crawl4ai.com/">
-            </div>
-            <div class="form-group">
-                <label for="query">Query:</label>
-                <input type="text" id="query" value="Summarize the key features of crawl4ai in bullet points.">
-            </div>
-            <button onclick="testDirectCrawl()">Test Direct Crawl</button>
-            <div class="response" id="directCrawlResponse"></div>
-        </div>
 
-        <div class="card">
-            <h2>Direct Multi-Crawl to LLM</h2>
-            <div class="form-group">
-                <label for="urls">URLs (one per line):</label>
-                <textarea id="urls">https://docs.crawl4ai.com/
-https://docs.crawl4ai.com/core/quickstart/</textarea>
-            </div>
-            <div class="form-group">
-                <label for="multiQuery">Query:</label>
-                <input type="text" id="multiQuery" value="Compare the information from these pages and provide a comprehensive overview of crawl4ai.">
-            </div>
-            <button onclick="testDirectMultiCrawl()">Test Direct Multi-Crawl</button>
-            <div class="response" id="directMultiCrawlResponse"></div>
-        </div>
 
         <div class="card">
             <h2>Generate MDX from URL</h2>
@@ -152,6 +125,132 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
             <button onclick="testSingleTopicRaw()">Generate MDX (Raw)</button>
             <div class="response" id="singleTopicResponse"></div>
         </div>
+
+        <div class="card">
+            <h2>Refine with Selection</h2>
+            <div class="form-group">
+                <label for="refineMdx">MDX Content:</label>
+                <textarea id="refineMdx">---
+title: "Introduction to Python"
+description: "A beginner's guide to Python programming"
+date: "2023-07-15"
+---
+
+# Introduction to Python
+
+Python is a high-level, interpreted programming language known for its simplicity and readability.
+
+## Key Features
+
+- Easy to learn and use
+- Interpreted language
+- Dynamically typed
+- Object-oriented
+- Extensive standard library</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineQuestion">Question/Request:</label>
+                <input type="text" id="refineQuestion" value="Can you add more details about Python's popularity in data science?">
+            </div>
+            <div class="form-group">
+                <label for="refineSelectedText">Selected Text:</label>
+                <textarea id="refineSelectedText">Python is a high-level, interpreted programming language known for its simplicity and readability.</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineTopic">Topic:</label>
+                <input type="text" id="refineTopic" value="Python Programming">
+            </div>
+            <button onclick="testRefineWithSelection()">Refine (JSON)</button>
+            <button onclick="testRefineWithSelectionRaw()">Refine (Raw)</button>
+            <div class="response" id="refineSelectionResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Refine with Crawling</h2>
+            <div class="form-group">
+                <label for="refineCrawlMdx">MDX Content:</label>
+                <textarea id="refineCrawlMdx">---
+title: "Introduction to Python"
+description: "A beginner's guide to Python programming"
+date: "2023-07-15"
+---
+
+# Introduction to Python
+
+Python is a high-level, interpreted programming language known for its simplicity and readability.
+
+## Key Features
+
+- Easy to learn and use
+- Interpreted language
+- Dynamically typed
+- Object-oriented
+- Extensive standard library</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlQuestion">Question/Request:</label>
+                <input type="text" id="refineCrawlQuestion" value="Can you add more details about Python's popularity in data science?">
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlSelectedText">Selected Text:</label>
+                <textarea id="refineCrawlSelectedText">Python is a high-level, interpreted programming language known for its simplicity and readability.</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlTopic">Topic:</label>
+                <input type="text" id="refineCrawlTopic" value="Python Programming">
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlNumResults">Number of Websites to Crawl:</label>
+                <input type="number" id="refineCrawlNumResults" value="2" min="1" max="5">
+            </div>
+            <button onclick="testRefineWithCrawling()">Refine (JSON)</button>
+            <button onclick="testRefineWithCrawlingRaw()">Refine (Raw)</button>
+            <div class="response" id="refineCrawlingResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Refine with URLs</h2>
+            <div class="form-group">
+                <label for="refineUrlsMdx">MDX Content:</label>
+                <textarea id="refineUrlsMdx">---
+title: "Introduction to Python"
+description: "A beginner's guide to Python programming"
+date: "2023-07-15"
+---
+
+# Introduction to Python
+
+Python is a high-level, interpreted programming language known for its simplicity and readability.
+
+## Key Features
+
+- Easy to learn and use
+- Interpreted language
+- Dynamically typed
+- Object-oriented
+- Extensive standard library</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineUrlsQuestion">Question/Request:</label>
+                <input type="text" id="refineUrlsQuestion" value="Can you add more details about Python's popularity in data science?">
+            </div>
+            <div class="form-group">
+                <label for="refineUrlsSelectedText">Selected Text:</label>
+                <textarea id="refineUrlsSelectedText">Python is a high-level, interpreted programming language known for its simplicity and readability.</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineUrlsTopic">Topic:</label>
+                <input type="text" id="refineUrlsTopic" value="Python Programming">
+            </div>
+            <div class="form-group">
+                <label for="refineUrls">URLs to Crawl (one per line):</label>
+                <textarea id="refineUrls">https://www.python.org/
+https://docs.python.org/3/tutorial/index.html</textarea>
+            </div>
+            <button onclick="testRefineWithUrls()">Refine (JSON)</button>
+            <button onclick="testRefineWithUrlsRaw()">Refine (Raw)</button>
+            <div class="response" id="refineUrlsResponse"></div>
+        </div>
     </div>
 
     <script>
@@ -168,56 +267,7 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
             responseElement.appendChild(downloadLink);
         }
 
-        async function testDirectCrawl() {
-            const url = document.getElementById('url').value;
-            const query = document.getElementById('query').value;
-            const responseElement = document.getElementById('directCrawlResponse');
 
-            responseElement.textContent = 'Loading...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/direct-crawl`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ url, query }),
-                    mode: 'cors'
-                });
-
-                const data = await response.json();
-                responseElement.textContent = JSON.stringify(data, null, 2);
-            } catch (error) {
-                responseElement.textContent = `Error: ${error.message}`;
-            }
-        }
-
-        async function testDirectMultiCrawl() {
-            const urlsText = document.getElementById('urls').value;
-            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
-            const query = document.getElementById('multiQuery').value;
-            const responseElement = document.getElementById('directMultiCrawlResponse');
-
-            responseElement.textContent = 'Loading...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/direct-multi-crawl`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ urls, query }),
-                    mode: 'cors'
-                });
-
-                const data = await response.json();
-                responseElement.textContent = JSON.stringify(data, null, 2);
-            } catch (error) {
-                responseElement.textContent = `Error: ${error.message}`;
-            }
-        }
 
         async function testGenerateMdxFromUrl() {
             const url = document.getElementById('mdxUrl').value;
@@ -421,6 +471,228 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
 
                 // Create a download link for the MDX content
                 createMdxDownloadLink(mdxContent, topic, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Refine with Selection functions
+        async function testRefineWithSelection() {
+            const mdx = document.getElementById('refineMdx').value;
+            const question = document.getElementById('refineQuestion').value;
+            const selectedText = document.getElementById('refineSelectedText').value;
+            const topic = document.getElementById('refineTopic').value;
+            const responseElement = document.getElementById('refineSelectionResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-selection`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display the response
+                responseElement.textContent = JSON.stringify(data, null, 2);
+
+                // If there's an answer, create a download link
+                if (data.data && data.data.answer) {
+                    createMdxDownloadLink(data.data.answer, `${topic}_refined`, responseElement);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testRefineWithSelectionRaw() {
+            const mdx = document.getElementById('refineMdx').value;
+            const question = document.getElementById('refineQuestion').value;
+            const selectedText = document.getElementById('refineSelectedText').value;
+            const topic = document.getElementById('refineTopic').value;
+            const responseElement = document.getElementById('refineSelectionResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-selection-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, `${topic}_refined`, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Refine with Crawling functions
+        async function testRefineWithCrawling() {
+            const mdx = document.getElementById('refineCrawlMdx').value;
+            const question = document.getElementById('refineCrawlQuestion').value;
+            const selectedText = document.getElementById('refineCrawlSelectedText').value;
+            const topic = document.getElementById('refineCrawlTopic').value;
+            const numResults = document.getElementById('refineCrawlNumResults').value;
+            const responseElement = document.getElementById('refineCrawlingResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-crawling`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        mdx,
+                        question,
+                        selected_text: selectedText,
+                        topic,
+                        num_results: parseInt(numResults)
+                    }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display the response
+                responseElement.textContent = JSON.stringify(data, null, 2);
+
+                // If there's an answer, create a download link
+                if (data.data && data.data.answer) {
+                    createMdxDownloadLink(data.data.answer, `${topic}_refined_crawled`, responseElement);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testRefineWithCrawlingRaw() {
+            const mdx = document.getElementById('refineCrawlMdx').value;
+            const question = document.getElementById('refineCrawlQuestion').value;
+            const selectedText = document.getElementById('refineCrawlSelectedText').value;
+            const topic = document.getElementById('refineCrawlTopic').value;
+            const numResults = document.getElementById('refineCrawlNumResults').value;
+            const responseElement = document.getElementById('refineCrawlingResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-crawling-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({
+                        mdx,
+                        question,
+                        selected_text: selectedText,
+                        topic,
+                        num_results: parseInt(numResults)
+                    }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, `${topic}_refined_crawled`, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Refine with URLs functions
+        async function testRefineWithUrls() {
+            const mdx = document.getElementById('refineUrlsMdx').value;
+            const question = document.getElementById('refineUrlsQuestion').value;
+            const selectedText = document.getElementById('refineUrlsSelectedText').value;
+            const topic = document.getElementById('refineUrlsTopic').value;
+            const urlsText = document.getElementById('refineUrls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            const responseElement = document.getElementById('refineUrlsResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-urls`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic, urls }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display the response
+                responseElement.textContent = JSON.stringify(data, null, 2);
+
+                // If there's an answer, create a download link
+                if (data.data && data.data.answer) {
+                    createMdxDownloadLink(data.data.answer, `${topic}_refined_with_urls`, responseElement);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testRefineWithUrlsRaw() {
+            const mdx = document.getElementById('refineUrlsMdx').value;
+            const question = document.getElementById('refineUrlsQuestion').value;
+            const selectedText = document.getElementById('refineUrlsSelectedText').value;
+            const topic = document.getElementById('refineUrlsTopic').value;
+            const urlsText = document.getElementById('refineUrls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            const responseElement = document.getElementById('refineUrlsResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-urls-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic, urls }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, `${topic}_refined_with_urls`, responseElement);
             } catch (error) {
                 responseElement.textContent = `Error: ${error.message}`;
             }

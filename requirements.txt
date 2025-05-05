@@ -8,10 +8,8 @@ google-generativeai
 crawl4ai
 duckduckgo-search
 requests
-beautifulsoup4
 googlesearch-python
 langchain
 langchain-community
 langchain-openai
 openai
-sqlalchemy

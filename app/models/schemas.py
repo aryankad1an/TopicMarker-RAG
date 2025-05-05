@@ -3,14 +3,14 @@ from typing import List
 
 class QueryRequest(BaseModel):
     query: str
-    limit: int = 10
+    limit: int = 2
 
 class TopicResponse(BaseModel):
     topics: List[str]
 
 class GenerateMDXRequest(BaseModel):
     topics: List[str]
-    top_k: int = 5
+    top_k: int = 2
 
 class MDXResponse(BaseModel):
     mdx: str
@@ -22,6 +22,29 @@ class RefineRequest(BaseModel):
 class RefineResponse(BaseModel):
     answer: str
 
+# Enhanced refine request with selected text and topic
+class RefineWithSelectionRequest(BaseModel):
+    mdx: str
+    question: str
+    selected_text: str
+    topic: str
+
+# Refine with crawling request
+class RefineWithCrawlingRequest(BaseModel):
+    mdx: str
+    question: str
+    selected_text: str
+    topic: str
+    num_results: int = 2
+
+# Refine with specific URLs request
+class RefineWithURLsRequest(BaseModel):
+    mdx: str
+    question: str
+    selected_text: str
+    topic: str
+    urls: List[str]
+
 class TopicItem(BaseModel):
     topic: str
     subtopics: List[str]
@@ -31,7 +54,7 @@ class TopicHierarchyResponse(BaseModel):
 
 class GenerateMDXRequest(BaseModel):
     topics: List[TopicItem]
-    top_k: int = 5
+    top_k: int = 2
 
 class MDXTopicResponse(BaseModel):
     topic: str
@@ -46,19 +69,13 @@ class Topic(BaseModel):
 
 class SearchRequest(BaseModel):
     topics: List[Topic]
-    top_k: int = 3
+    top_k: int = 2
 
 class SingleTopicRequest(BaseModel):
     topic: str
-    num_results: int = 5
+    num_results: int = 2
 
-class DirectCrawlRequest(BaseModel):
-    url: str
-    query: str
 
-class DirectMultiCrawlRequest(BaseModel):
-    urls: List[str]
-    query: str
 
 class GenerateMDXFromURLRequest(BaseModel):
     url: str

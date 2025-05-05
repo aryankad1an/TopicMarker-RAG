@@ -1,19 +1,18 @@
-import uuid
-import asyncio
 import fastapi
 from fastapi import APIRouter
 from app.models.schemas import (
     QueryRequest, RefineRequest, RefineResponse,
     SearchRequest, SingleTopicRequest,
-    DirectCrawlRequest, DirectMultiCrawlRequest,
-    GenerateMDXFromURLRequest, GenerateMDXFromURLsRequest
+    GenerateMDXFromURLRequest, GenerateMDXFromURLsRequest,
+    RefineWithSelectionRequest, RefineWithCrawlingRequest, RefineWithURLsRequest
 )
 from app.utils.response import success_response, error_response
 from app.services.gemini_llm import generate_content, refine_content_with_gemini
 from googlesearch import search
 from app.services.crawler import (
     generate_single_topic_mdx_async, generate_mdx_document_async,
-    generate_mdx_from_url_async, generate_mdx_from_urls_async
+    generate_mdx_from_url_async, generate_mdx_from_urls_async,
+    find_relevant_websites, crawl_urls_async
 )
 
 router = APIRouter()
@@ -145,6 +144,310 @@ async def refine(request: RefineRequest):
     except Exception as e:
         return error_response("Failed to refine content", status_code=500, details=str(e))
 
+@router.post("/refine-with-selection", response_model=RefineResponse)
+async def refine_with_selection(request: RefineWithSelectionRequest):
+    """
+    Refine MDX content with LLM using selected text and topic context.
+
+    This endpoint:
+    1. Takes MDX content, a question, selected text, and topic name
+    2. Uses the LLM to refine the content based on these inputs
+    3. Returns the refined MDX content
+    """
+    try:
+        # Create a more detailed prompt that includes the selected text and topic
+        prompt = f"""
+        Here is MDX content about the topic "{request.topic}":
+
+        {request.mdx}
+
+        The user has selected this specific text:
+        "{request.selected_text}"
+
+        User asks: {request.question}
+
+        Please return an updated MDX snippet that addresses the user's question or request,
+        focusing specifically on improving or modifying the selected text.
+        Make sure to maintain proper MDX formatting in your response.
+        """
+
+        # Generate the refined content
+        refined_content = generate_content(prompt)
+
+        return success_response({"answer": refined_content})
+    except Exception as e:
+        return error_response("Failed to refine content with selection", status_code=500, details=str(e))
+
+@router.post("/refine-with-crawling", response_model=RefineResponse)
+async def refine_with_crawling(request: RefineWithCrawlingRequest):
+    """
+    Refine MDX content by first crawling relevant websites and then using the LLM.
+
+    This endpoint:
+    1. Takes MDX content, a question, selected text, and topic name
+    2. Finds and crawls 2 relevant websites based on the topic and question
+    3. Sends the crawled content to the LLM along with the original request
+    4. Returns the refined MDX content
+    """
+    try:
+        # Find relevant websites based on the topic and question
+        search_query = f"{request.topic} {request.question}"
+        relevant_websites = find_relevant_websites(search_query, num_results=request.num_results)
+
+        if not relevant_websites:
+            return error_response("Could not find relevant websites to crawl", status_code=404)
+
+        # Crawl the websites
+        print(f"Crawling websites for refinement: {relevant_websites}")
+        scraped_data = await crawl_urls_async(relevant_websites)
+
+        # Combine the crawled content
+        crawled_content = ""
+        for url, content in scraped_data.items():
+            if isinstance(content, str) and not content.startswith("Error scraping"):
+                crawled_content += f"Content from {url}:\n{content}\n\n"
+
+        # Create a prompt that includes the crawled content
+        prompt = f"""
+        Here is MDX content about the topic "{request.topic}":
+
+        {request.mdx}
+
+        The user has selected this specific text:
+        "{request.selected_text}"
+
+        User asks: {request.question}
+
+        I've gathered additional information from relevant websites:
+
+        {crawled_content}
+
+        Using this additional information, please return an updated MDX snippet that addresses
+        the user's question or request, focusing specifically on improving or modifying the selected text.
+        Make sure to maintain proper MDX formatting in your response.
+        """
+
+        # Generate the refined content
+        refined_content = generate_content(prompt)
+
+        return success_response({
+            "answer": refined_content,
+            "crawled_websites": relevant_websites
+        })
+    except Exception as e:
+        return error_response("Failed to refine content with crawling", status_code=500, details=str(e))
+
+@router.post("/refine-with-urls", response_model=RefineResponse)
+async def refine_with_urls(request: RefineWithURLsRequest):
+    """
+    Refine MDX content by crawling specific URLs provided by the user.
+
+    This endpoint:
+    1. Takes MDX content, a question, selected text, topic name, and a list of URLs
+    2. Crawls the provided URLs
+    3. Sends the crawled content to the LLM along with the original request
+    4. Returns the refined MDX content
+    """
+    try:
+        if not request.urls:
+            return error_response("No URLs provided for crawling", status_code=400)
+
+        # Crawl the provided URLs
+        print(f"Crawling user-provided URLs for refinement: {request.urls}")
+        scraped_data = await crawl_urls_async(request.urls)
+
+        # Combine the crawled content
+        crawled_content = ""
+        successful_urls = []
+        for url, content in scraped_data.items():
+            if isinstance(content, str) and not content.startswith("Error scraping"):
+                crawled_content += f"Content from {url}:\n{content}\n\n"
+                successful_urls.append(url)
+
+        if not crawled_content.strip():
+            return error_response("Could not extract valid content from any of the provided URLs", status_code=404)
+
+        # Create a prompt that includes the crawled content
+        prompt = f"""
+        Here is MDX content about the topic "{request.topic}":
+
+        {request.mdx}
+
+        The user has selected this specific text:
+        "{request.selected_text}"
+
+        User asks: {request.question}
+
+        I've gathered additional information from the URLs provided by the user:
+
+        {crawled_content}
+
+        Using this additional information, please return an updated MDX snippet that addresses
+        the user's question or request, focusing specifically on improving or modifying the selected text.
+        Make sure to maintain proper MDX formatting in your response.
+        """
+
+        # Generate the refined content
+        refined_content = generate_content(prompt)
+
+        return success_response({
+            "answer": refined_content,
+            "crawled_websites": successful_urls
+        })
+    except Exception as e:
+        return error_response("Failed to refine content with provided URLs", status_code=500, details=str(e))
+
+@router.post("/refine-with-selection-raw", response_class=fastapi.responses.PlainTextResponse)
+async def refine_with_selection_raw(request: RefineWithSelectionRequest):
+    """
+    Refine MDX content with LLM using selected text and topic context.
+    Returns the raw MDX content as plain text instead of JSON.
+
+    This endpoint:
+    1. Takes MDX content, a question, selected text, and topic name
+    2. Uses the LLM to refine the content based on these inputs
+    3. Returns the raw refined MDX content as plain text
+    """
+    try:
+        # Create a more detailed prompt that includes the selected text and topic
+        prompt = f"""
+        Here is MDX content about the topic "{request.topic}":
+
+        {request.mdx}
+
+        The user has selected this specific text:
+        "{request.selected_text}"
+
+        User asks: {request.question}
+
+        Please return an updated MDX snippet that addresses the user's question or request,
+        focusing specifically on improving or modifying the selected text.
+        Make sure to maintain proper MDX formatting in your response.
+        """
+
+        # Generate the refined content
+        refined_content = generate_content(prompt)
+
+        # Return the raw MDX content as plain text
+        return refined_content
+    except Exception as e:
+        return f"Error: Failed to refine content with selection - {str(e)}"
+
+@router.post("/refine-with-crawling-raw", response_class=fastapi.responses.PlainTextResponse)
+async def refine_with_crawling_raw(request: RefineWithCrawlingRequest):
+    """
+    Refine MDX content by first crawling relevant websites and then using the LLM.
+    Returns the raw MDX content as plain text instead of JSON.
+
+    This endpoint:
+    1. Takes MDX content, a question, selected text, and topic name
+    2. Finds and crawls 2 relevant websites based on the topic and question
+    3. Sends the crawled content to the LLM along with the original request
+    4. Returns the raw refined MDX content as plain text
+    """
+    try:
+        # Find relevant websites based on the topic and question
+        search_query = f"{request.topic} {request.question}"
+        relevant_websites = find_relevant_websites(search_query, num_results=request.num_results)
+
+        if not relevant_websites:
+            return "Error: Could not find relevant websites to crawl"
+
+        # Crawl the websites
+        print(f"Crawling websites for refinement: {relevant_websites}")
+        scraped_data = await crawl_urls_async(relevant_websites)
+
+        # Combine the crawled content
+        crawled_content = ""
+        for url, content in scraped_data.items():
+            if isinstance(content, str) and not content.startswith("Error scraping"):
+                crawled_content += f"Content from {url}:\n{content}\n\n"
+
+        # Create a prompt that includes the crawled content
+        prompt = f"""
+        Here is MDX content about the topic "{request.topic}":
+
+        {request.mdx}
+
+        The user has selected this specific text:
+        "{request.selected_text}"
+
+        User asks: {request.question}
+
+        I've gathered additional information from relevant websites:
+
+        {crawled_content}
+
+        Using this additional information, please return an updated MDX snippet that addresses
+        the user's question or request, focusing specifically on improving or modifying the selected text.
+        Make sure to maintain proper MDX formatting in your response.
+        """
+
+        # Generate the refined content
+        refined_content = generate_content(prompt)
+
+        # Return the raw MDX content as plain text
+        return refined_content
+    except Exception as e:
+        return f"Error: Failed to refine content with crawling - {str(e)}"
+
+@router.post("/refine-with-urls-raw", response_class=fastapi.responses.PlainTextResponse)
+async def refine_with_urls_raw(request: RefineWithURLsRequest):
+    """
+    Refine MDX content by crawling specific URLs provided by the user.
+    Returns the raw MDX content as plain text instead of JSON.
+
+    This endpoint:
+    1. Takes MDX content, a question, selected text, topic name, and a list of URLs
+    2. Crawls the provided URLs
+    3. Sends the crawled content to the LLM along with the original request
+    4. Returns the raw refined MDX content as plain text
+    """
+    try:
+        if not request.urls:
+            return "Error: No URLs provided for crawling"
+
+        # Crawl the provided URLs
+        print(f"Crawling user-provided URLs for refinement: {request.urls}")
+        scraped_data = await crawl_urls_async(request.urls)
+
+        # Combine the crawled content
+        crawled_content = ""
+        for url, content in scraped_data.items():
+            if isinstance(content, str) and not content.startswith("Error scraping"):
+                crawled_content += f"Content from {url}:\n{content}\n\n"
+
+        if not crawled_content.strip():
+            return "Error: Could not extract valid content from any of the provided URLs"
+
+        # Create a prompt that includes the crawled content
+        prompt = f"""
+        Here is MDX content about the topic "{request.topic}":
+
+        {request.mdx}
+
+        The user has selected this specific text:
+        "{request.selected_text}"
+
+        User asks: {request.question}
+
+        I've gathered additional information from the URLs provided by the user:
+
+        {crawled_content}
+
+        Using this additional information, please return an updated MDX snippet that addresses
+        the user's question or request, focusing specifically on improving or modifying the selected text.
+        Make sure to maintain proper MDX formatting in your response.
+        """
+
+        # Generate the refined content
+        refined_content = generate_content(prompt)
+
+        # Return the raw MDX content as plain text
+        return refined_content
+    except Exception as e:
+        return f"Error: Failed to refine content with provided URLs - {str(e)}"
+
 @router.post("/single-topic")
 async def generate_single_topic(request: SingleTopicRequest):
     """
@@ -194,69 +497,7 @@ async def generate_single_topic(request: SingleTopicRequest):
             "details": str(e)
         }
 
-@router.post("/direct-crawl")
-async def direct_crawl_endpoint(request: DirectCrawlRequest):
-    """
-    Direct pipeline from crawl4ai to LLM without BeautifulSoup processing.
 
-    This endpoint:
-    1. Takes a URL and a query
-    2. Crawls the URL using crawl4ai
-    3. Sends the content directly to the LLM with the query
-    4. Returns the LLM-generated content
-    """
-    try:
-        # Import here to avoid circular imports
-        from app.services.crawler import direct_crawl_to_llm_async
-
-        # Use the direct crawl-to-LLM pipeline
-        result = await direct_crawl_to_llm_async(request.url, request.query)
-
-        return {
-            "status": "success",
-            "url": request.url,
-            "query": request.query,
-            "result": result
-        }
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": "Failed to process direct crawl to LLM",
-            "details": str(e)
-        }
-
-@router.post("/direct-multi-crawl")
-async def direct_multi_crawl_endpoint(request: DirectMultiCrawlRequest):
-    """
-    Direct pipeline from crawl4ai to LLM for multiple URLs without BeautifulSoup processing.
-
-    This endpoint:
-    1. Takes a list of URLs and a query
-    2. Crawls all URLs using crawl4ai
-    3. Sends the combined content directly to the LLM with the query
-    4. Returns the LLM-generated content
-    """
-    try:
-        # Import here to avoid circular imports
-        from app.services.crawler import direct_multi_crawl_to_llm_async
-
-        # Use the direct multi-crawl-to-LLM pipeline
-        result = await direct_multi_crawl_to_llm_async(request.urls, request.query)
-
-        return {
-            "status": "success",
-            "urls": request.urls,
-            "query": request.query,
-            "result": result
-        }
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": "Failed to process direct multi-crawl to LLM",
-            "details": str(e)
-        }
 
 @router.post("/generate-mdx-from-url")
 async def generate_mdx_from_url_endpoint(request: GenerateMDXFromURLRequest):

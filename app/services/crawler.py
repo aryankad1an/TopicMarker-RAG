@@ -212,7 +212,7 @@ def find_relevant_websites(topic: str, num_results: int = 2) -> list:
         print(f"Error finding relevant websites: {e}")
         return []
 
-async def generate_single_topic_mdx_async(topic: str, num_results: int = 5) -> dict:
+async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> dict:
     """
     Generate MDX content for a single topic, checking if the LLM has up-to-date information first.
     If not, find and crawl relevant websites for the latest information.
@@ -359,7 +359,7 @@ date: "{current_date}"
             "has_current_info": has_current_info
         }
 
-def generate_single_topic_mdx(topic: str, num_results: int = 5) -> dict:
+def generate_single_topic_mdx(topic: str, num_results: int = 2) -> dict:
     """
     Generate MDX content for a single topic, checking if the LLM has up-to-date information first.
     If not, find and crawl relevant websites for the latest information.
@@ -374,122 +374,9 @@ def generate_single_topic_mdx(topic: str, num_results: int = 5) -> dict:
     """
     return asyncio.run(generate_single_topic_mdx_async(topic, num_results))
 
-async def direct_crawl_to_llm_async(url: str, query: str) -> str:
-    """
-    Direct pipeline from crawl4ai to LLM without BeautifulSoup processing.
 
-    Args:
-        url: The URL to crawl
-        query: The query or instruction for the LLM
 
-    Returns:
-        The LLM-generated content
-    """
-    try:
-        # Configure the crawler with debugger disabled
-        browser_config = get_browser_config(headless=True, verbose=False)
-        async with AsyncWebCrawler(config=browser_config) as crawler:
-            crawler_config = get_crawler_config(
-                cache_mode=CacheMode.BYPASS,  # Ensure fresh content
-                word_count_threshold=1  # Ensure we get all content
-            )
 
-            # Crawl the URL
-            print(f"Crawling {url}...")
-            result = await crawler.arun(url, config=crawler_config)
-
-            if not result.success:
-                return f"Error crawling {url}: {result.error_message}"
-
-            # Get the markdown content
-            markdown_content = result.markdown
-
-            # Send directly to LLM
-            print(f"Sending content to LLM with query: {query}")
-            prompt = f"""
-            Based on the following content from {url}:
-
-            {markdown_content}
-
-            {query}
-            """
-
-            # Generate content with LLM
-            llm_response = generate_content(prompt)
-            return llm_response
-
-    except Exception as e:
-        return f"Error in direct crawl to LLM pipeline: {e}"
-
-def direct_crawl_to_llm(url: str, query: str) -> str:
-    """
-    Direct pipeline from crawl4ai to LLM without BeautifulSoup processing.
-    This is a synchronous wrapper around the async function.
-
-    Args:
-        url: The URL to crawl
-        query: The query or instruction for the LLM
-
-    Returns:
-        The LLM-generated content
-    """
-    return asyncio.run(direct_crawl_to_llm_async(url, query))
-
-async def direct_multi_crawl_to_llm_async(urls: list, query: str) -> str:
-    """
-    Direct pipeline from crawl4ai to LLM for multiple URLs without BeautifulSoup processing.
-
-    Args:
-        urls: List of URLs to crawl
-        query: The query or instruction for the LLM
-
-    Returns:
-        The LLM-generated content
-    """
-    try:
-        # Disable debugger for this operation
-        os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
-
-        # Crawl all URLs
-        print(f"Crawling {len(urls)} URLs...")
-        scraped_data = await crawl_urls_async(urls)
-
-        # Combine all content
-        all_content = ""
-        for url, content in scraped_data.items():
-            if isinstance(content, str) and not content.startswith("Error scraping"):
-                all_content += f"Content from {url}:\n{content}\n\n"
-
-        # Send directly to LLM
-        print(f"Sending content from {len(urls)} URLs to LLM with query: {query}")
-        prompt = f"""
-        Based on the following content from multiple sources:
-
-        {all_content}
-
-        {query}
-        """
-
-        # Generate content with LLM
-        llm_response = generate_content(prompt)
-        return llm_response
-
-    except Exception as e:
-        return f"Error in direct multi-crawl to LLM pipeline: {e}"
-
-def direct_multi_crawl_to_llm(urls: list, query: str) -> str:
-    """
-    Direct pipeline from crawl4ai to LLM for multiple URLs without BeautifulSoup processing.
-    This is a synchronous wrapper around the async function.
-
-    Args:
-        urls: List of URLs to crawl
-        query: The query or instruction for the LLM
-
-    Returns:
-        The LLM-generated content
-    """
-    return asyncio.run(direct_multi_crawl_to_llm_async(urls, query))
 
 async def generate_mdx_from_url_async(url: str, topic: str, use_llm_knowledge: bool = True) -> str:
     """

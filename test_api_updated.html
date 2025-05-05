@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test TopicMarker RAG API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 100px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        h2 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test TopicMarker RAG API</h1>
+
+    <div class="container">
+
+
+        <div class="card">
+            <h2>Generate MDX from URL</h2>
+            <div class="form-group">
+                <label for="mdxUrl">URL:</label>
+                <input type="text" id="mdxUrl" value="https://docs.crawl4ai.com/">
+            </div>
+            <div class="form-group">
+                <label for="topic">Topic:</label>
+                <input type="text" id="topic" value="Crawl4AI: A Modern Web Crawler">
+            </div>
+            <div class="form-group">
+                <label for="useLlmKnowledge">Use LLM Knowledge if Crawling Fails:</label>
+                <input type="checkbox" id="useLlmKnowledge" checked style="width: auto;">
+            </div>
+            <button onclick="testGenerateMdxFromUrl()">Generate MDX (JSON)</button>
+            <button onclick="testGenerateMdxFromUrlRaw()">Generate MDX (Raw)</button>
+            <div class="response" id="generateMdxResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Generate MDX from Multiple URLs</h2>
+            <div class="form-group">
+                <label for="mdxUrls">URLs (one per line):</label>
+                <textarea id="mdxUrls">https://docs.crawl4ai.com/
+https://docs.crawl4ai.com/core/quickstart/</textarea>
+            </div>
+            <div class="form-group">
+                <label for="mdxUrlsTopic">Topic:</label>
+                <input type="text" id="mdxUrlsTopic" value="Crawl4AI: A Comprehensive Guide">
+            </div>
+            <div class="form-group">
+                <label for="useLlmKnowledgeUrls">Use LLM Knowledge if Crawling Fails:</label>
+                <input type="checkbox" id="useLlmKnowledgeUrls" checked style="width: auto;">
+            </div>
+            <button onclick="testGenerateMdxFromUrls()">Generate MDX (JSON)</button>
+            <button onclick="testGenerateMdxFromUrlsRaw()">Generate MDX (Raw)</button>
+            <div class="response" id="generateMdxUrlsResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Generate MDX for Single Topic</h2>
+            <div class="form-group">
+                <label for="singleTopic">Topic:</label>
+                <input type="text" id="singleTopic" value="React 19">
+            </div>
+            <div class="form-group">
+                <label for="numResults">Number of Results:</label>
+                <input type="number" id="numResults" value="5" min="1" max="10">
+            </div>
+            <button onclick="testSingleTopic()">Generate MDX (JSON)</button>
+            <button onclick="testSingleTopicRaw()">Generate MDX (Raw)</button>
+            <div class="response" id="singleTopicResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Refine with Selection</h2>
+            <div class="form-group">
+                <label for="refineMdx">MDX Content:</label>
+                <textarea id="refineMdx">---
+title: "Introduction to Python"
+description: "A beginner's guide to Python programming"
+date: "2023-07-15"
+---
+
+# Introduction to Python
+
+Python is a high-level, interpreted programming language known for its simplicity and readability.
+
+## Key Features
+
+- Easy to learn and use
+- Interpreted language
+- Dynamically typed
+- Object-oriented
+- Extensive standard library</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineQuestion">Question/Request:</label>
+                <input type="text" id="refineQuestion" value="Can you add more details about Python's popularity in data science?">
+            </div>
+            <div class="form-group">
+                <label for="refineSelectedText">Selected Text:</label>
+                <textarea id="refineSelectedText">Python is a high-level, interpreted programming language known for its simplicity and readability.</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineTopic">Topic:</label>
+                <input type="text" id="refineTopic" value="Python Programming">
+            </div>
+            <button onclick="testRefineWithSelection()">Refine (JSON)</button>
+            <button onclick="testRefineWithSelectionRaw()">Refine (Raw)</button>
+            <div class="response" id="refineSelectionResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Refine with Crawling</h2>
+            <div class="form-group">
+                <label for="refineCrawlMdx">MDX Content:</label>
+                <textarea id="refineCrawlMdx">---
+title: "Introduction to Python"
+description: "A beginner's guide to Python programming"
+date: "2023-07-15"
+---
+
+# Introduction to Python
+
+Python is a high-level, interpreted programming language known for its simplicity and readability.
+
+## Key Features
+
+- Easy to learn and use
+- Interpreted language
+- Dynamically typed
+- Object-oriented
+- Extensive standard library</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlQuestion">Question/Request:</label>
+                <input type="text" id="refineCrawlQuestion" value="Can you add more details about Python's popularity in data science?">
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlSelectedText">Selected Text:</label>
+                <textarea id="refineCrawlSelectedText">Python is a high-level, interpreted programming language known for its simplicity and readability.</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlTopic">Topic:</label>
+                <input type="text" id="refineCrawlTopic" value="Python Programming">
+            </div>
+            <div class="form-group">
+                <label for="refineCrawlNumResults">Number of Websites to Crawl:</label>
+                <input type="number" id="refineCrawlNumResults" value="2" min="1" max="5">
+            </div>
+            <button onclick="testRefineWithCrawling()">Refine (JSON)</button>
+            <button onclick="testRefineWithCrawlingRaw()">Refine (Raw)</button>
+            <div class="response" id="refineCrawlingResponse"></div>
+        </div>
+
+        <div class="card">
+            <h2>Refine with URLs</h2>
+            <div class="form-group">
+                <label for="refineUrlsMdx">MDX Content:</label>
+                <textarea id="refineUrlsMdx">---
+title: "Introduction to Python"
+description: "A beginner's guide to Python programming"
+date: "2023-07-15"
+---
+
+# Introduction to Python
+
+Python is a high-level, interpreted programming language known for its simplicity and readability.
+
+## Key Features
+
+- Easy to learn and use
+- Interpreted language
+- Dynamically typed
+- Object-oriented
+- Extensive standard library</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineUrlsQuestion">Question/Request:</label>
+                <input type="text" id="refineUrlsQuestion" value="Can you add more details about Python's popularity in data science?">
+            </div>
+            <div class="form-group">
+                <label for="refineUrlsSelectedText">Selected Text:</label>
+                <textarea id="refineUrlsSelectedText">Python is a high-level, interpreted programming language known for its simplicity and readability.</textarea>
+            </div>
+            <div class="form-group">
+                <label for="refineUrlsTopic">Topic:</label>
+                <input type="text" id="refineUrlsTopic" value="Python Programming">
+            </div>
+            <div class="form-group">
+                <label for="refineUrls">URLs to Crawl (one per line):</label>
+                <textarea id="refineUrls">https://www.python.org/
+https://docs.python.org/3/tutorial/index.html</textarea>
+            </div>
+            <button onclick="testRefineWithUrls()">Refine (JSON)</button>
+            <button onclick="testRefineWithUrlsRaw()">Refine (Raw)</button>
+            <div class="response" id="refineUrlsResponse"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/rag';
+
+        // Helper function to create download link for MDX content
+        function createMdxDownloadLink(mdxContent, topic, responseElement) {
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(new Blob([mdxContent], { type: 'text/plain' }));
+            downloadLink.download = `${topic.replace(/\s+/g, '_')}.mdx`;
+            downloadLink.textContent = 'Download MDX File';
+            downloadLink.style.display = 'block';
+            downloadLink.style.marginTop = '10px';
+            responseElement.appendChild(downloadLink);
+        }
+
+
+
+        async function testGenerateMdxFromUrl() {
+            const url = document.getElementById('mdxUrl').value;
+            const topic = document.getElementById('topic').value;
+            const useLlmKnowledge = document.getElementById('useLlmKnowledge').checked;
+            const responseElement = document.getElementById('generateMdxResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-mdx-from-url`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ url, topic, use_llm_knowledge: useLlmKnowledge }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display a preview of the MDX content
+                if (data.status === 'success' && data.mdx_content) {
+                    const mdxPreview = data.mdx_content.substring(0, 500) + '...';
+                    const fullResponse = { ...data, mdx_content: mdxPreview };
+                    responseElement.textContent = JSON.stringify(fullResponse, null, 2);
+
+                    // Create a download link for the full MDX content
+                    createMdxDownloadLink(data.mdx_content, topic, responseElement);
+                } else {
+                    responseElement.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testGenerateMdxFromUrlRaw() {
+            const url = document.getElementById('mdxUrl').value;
+            const topic = document.getElementById('topic').value;
+            const useLlmKnowledge = document.getElementById('useLlmKnowledge').checked;
+            const responseElement = document.getElementById('generateMdxResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-mdx-from-url-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ url, topic, use_llm_knowledge: useLlmKnowledge }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, topic, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testSingleTopic() {
+            const topic = document.getElementById('singleTopic').value;
+            const numResults = document.getElementById('numResults').value;
+            const responseElement = document.getElementById('singleTopicResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/single-topic`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ topic, num_results: parseInt(numResults) }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display a preview of the MDX content
+                if (data.status === 'success' && data.mdx_content) {
+                    const mdxPreview = data.mdx_content.substring(0, 500) + '...';
+                    const fullResponse = { ...data, mdx_content: mdxPreview };
+                    responseElement.textContent = JSON.stringify(fullResponse, null, 2);
+
+                    // Create a download link for the full MDX content
+                    createMdxDownloadLink(data.mdx_content, topic, responseElement);
+                } else {
+                    responseElement.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testSingleTopicRaw() {
+            const topic = document.getElementById('singleTopic').value;
+            const numResults = document.getElementById('numResults').value;
+            const responseElement = document.getElementById('singleTopicResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/single-topic-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ topic, num_results: parseInt(numResults) }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, topic, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testGenerateMdxFromUrls() {
+            const urlsText = document.getElementById('mdxUrls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            const topic = document.getElementById('mdxUrlsTopic').value;
+            const useLlmKnowledge = document.getElementById('useLlmKnowledgeUrls').checked;
+            const responseElement = document.getElementById('generateMdxUrlsResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-mdx-from-urls`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ urls, topic, use_llm_knowledge: useLlmKnowledge }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display a preview of the MDX content
+                if (data.status === 'success' && data.mdx_content) {
+                    const mdxPreview = data.mdx_content.substring(0, 500) + '...';
+                    const fullResponse = { ...data, mdx_content: mdxPreview };
+                    responseElement.textContent = JSON.stringify(fullResponse, null, 2);
+
+                    // Create a download link for the full MDX content
+                    createMdxDownloadLink(data.mdx_content, topic, responseElement);
+                } else {
+                    responseElement.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testGenerateMdxFromUrlsRaw() {
+            const urlsText = document.getElementById('mdxUrls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            const topic = document.getElementById('mdxUrlsTopic').value;
+            const useLlmKnowledge = document.getElementById('useLlmKnowledgeUrls').checked;
+            const responseElement = document.getElementById('generateMdxUrlsResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-mdx-from-urls-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ urls, topic, use_llm_knowledge: useLlmKnowledge }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, topic, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Refine with Selection functions
+        async function testRefineWithSelection() {
+            const mdx = document.getElementById('refineMdx').value;
+            const question = document.getElementById('refineQuestion').value;
+            const selectedText = document.getElementById('refineSelectedText').value;
+            const topic = document.getElementById('refineTopic').value;
+            const responseElement = document.getElementById('refineSelectionResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-selection`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display the response
+                responseElement.textContent = JSON.stringify(data, null, 2);
+
+                // If there's an answer, create a download link
+                if (data.data && data.data.answer) {
+                    createMdxDownloadLink(data.data.answer, `${topic}_refined`, responseElement);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testRefineWithSelectionRaw() {
+            const mdx = document.getElementById('refineMdx').value;
+            const question = document.getElementById('refineQuestion').value;
+            const selectedText = document.getElementById('refineSelectedText').value;
+            const topic = document.getElementById('refineTopic').value;
+            const responseElement = document.getElementById('refineSelectionResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-selection-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, `${topic}_refined`, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Refine with Crawling functions
+        async function testRefineWithCrawling() {
+            const mdx = document.getElementById('refineCrawlMdx').value;
+            const question = document.getElementById('refineCrawlQuestion').value;
+            const selectedText = document.getElementById('refineCrawlSelectedText').value;
+            const topic = document.getElementById('refineCrawlTopic').value;
+            const numResults = document.getElementById('refineCrawlNumResults').value;
+            const responseElement = document.getElementById('refineCrawlingResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-crawling`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        mdx,
+                        question,
+                        selected_text: selectedText,
+                        topic,
+                        num_results: parseInt(numResults)
+                    }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display the response
+                responseElement.textContent = JSON.stringify(data, null, 2);
+
+                // If there's an answer, create a download link
+                if (data.data && data.data.answer) {
+                    createMdxDownloadLink(data.data.answer, `${topic}_refined_crawled`, responseElement);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testRefineWithCrawlingRaw() {
+            const mdx = document.getElementById('refineCrawlMdx').value;
+            const question = document.getElementById('refineCrawlQuestion').value;
+            const selectedText = document.getElementById('refineCrawlSelectedText').value;
+            const topic = document.getElementById('refineCrawlTopic').value;
+            const numResults = document.getElementById('refineCrawlNumResults').value;
+            const responseElement = document.getElementById('refineCrawlingResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-crawling-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({
+                        mdx,
+                        question,
+                        selected_text: selectedText,
+                        topic,
+                        num_results: parseInt(numResults)
+                    }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, `${topic}_refined_crawled`, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Refine with URLs functions
+        async function testRefineWithUrls() {
+            const mdx = document.getElementById('refineUrlsMdx').value;
+            const question = document.getElementById('refineUrlsQuestion').value;
+            const selectedText = document.getElementById('refineUrlsSelectedText').value;
+            const topic = document.getElementById('refineUrlsTopic').value;
+            const urlsText = document.getElementById('refineUrls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            const responseElement = document.getElementById('refineUrlsResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-urls`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic, urls }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+
+                // Display the response
+                responseElement.textContent = JSON.stringify(data, null, 2);
+
+                // If there's an answer, create a download link
+                if (data.data && data.data.answer) {
+                    createMdxDownloadLink(data.data.answer, `${topic}_refined_with_urls`, responseElement);
+                }
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testRefineWithUrlsRaw() {
+            const mdx = document.getElementById('refineUrlsMdx').value;
+            const question = document.getElementById('refineUrlsQuestion').value;
+            const selectedText = document.getElementById('refineUrlsSelectedText').value;
+            const topic = document.getElementById('refineUrlsTopic').value;
+            const urlsText = document.getElementById('refineUrls').value;
+            const urls = urlsText.split('\n').filter(url => url.trim() !== '');
+            const responseElement = document.getElementById('refineUrlsResponse');
+
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/refine-with-urls-raw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ mdx, question, selected_text: selectedText, topic, urls }),
+                    mode: 'cors'
+                });
+
+                // Get the raw text response
+                const mdxContent = await response.text();
+
+                // Display the MDX content
+                responseElement.textContent = mdxContent;
+
+                // Create a download link for the MDX content
+                createMdxDownloadLink(mdxContent, `${topic}_refined_with_urls`, responseElement);
+            } catch (error) {
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

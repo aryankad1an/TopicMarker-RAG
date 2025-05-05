@@ -41,3 +41,31 @@ def generate_content(prompt: str) -> str:
         return response.text
     except Exception as e:
         raise RuntimeError(f"Content generation failed: {e}")
+
+def refine_content_with_gemini(mdx: str, question: str) -> str:
+    """
+    Refines MDX content based on a user question using Gemini API.
+
+    Args:
+        mdx: The original MDX content
+        question: The user's question or request for refinement
+
+    Returns:
+        The refined MDX content
+    """
+    prompt = f"""
+    Here is MDX content:
+
+    {mdx}
+
+    User asks: {question}
+
+    Please return an updated MDX snippet that addresses the user's question or request.
+    Make sure to maintain proper MDX formatting in your response.
+    """
+
+    try:
+        return generate_content(prompt)
+    except Exception as e:
+        print(f"❌ Error refining MDX content with Gemini: {e}")
+        raise RuntimeError(f"Refinement with Gemini failed: {e}")

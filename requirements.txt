@@ -2,8 +2,14 @@ fastapi
 uvicorn[standard]
 python-dotenv
 pydantic
-pinecone-client
-sentence-transformers
-transformers
+pydantic-settings
+pinecone
+google-generativeai
 crawl4ai
 duckduckgo-search
+requests
+googlesearch-python
+langchain
+langchain-community
+langchain-openai
+openai

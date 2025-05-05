@@ -1,17 +1,27 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers import rag
 from app.services.vectorstore import init_pinecone
 from app.utils.response import error_response  # Make sure this file exists
 
 app = FastAPI(title="Lesson Plan RAG Backend")
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for testing
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 @app.on_event("startup")
 async def startup_event():
     init_pinecone()
 
 
-# '/' ROUTE 
+# '/' ROUTE
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Lesson Plan RAG Backend!"}

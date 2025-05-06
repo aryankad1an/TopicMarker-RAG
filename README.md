@@ -165,17 +165,45 @@ The API will be available at `http://localhost:8000`.
 
 ## Testing
 
-You can test the API endpoints using the provided test scripts:
+The project includes a comprehensive test suite organized in the `tests` directory:
+
+- `unit/` - Unit tests for individual components
+- `api/` - Tests for the API endpoints
+- `integration/` - Integration tests
+- `html/` - HTML test files for manual testing
+
+### Running Tests
+
+To run all tests:
 
 ```bash
-python test_direct_crawl.py
+cd tests
+python run_tests.py --all
 ```
 
-To serve a test page for frontend testing:
+To run specific test categories:
 
 ```bash
+# Run only unit tests
+python run_tests.py --unit
+
+# Run only API tests (requires the API server to be running)
+python run_tests.py --api
+
+# Run only integration tests
+python run_tests.py --integration
+```
+
+### Manual Testing with HTML Test Page
+
+To test the API endpoints through a browser interface:
+
+```bash
+cd tests
 python serve_test_page.py
 ```
+
+Then open your browser and navigate to http://localhost:8080/test_api.html
 
 ## Dependencies
 

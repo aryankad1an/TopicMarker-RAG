@@ -22,6 +22,7 @@ router = APIRouter()
     "/search-topics",
 )
 async def search_topics(request: QueryRequest):
+    print("hererere")
     if not request.query.strip():
         return error_response("Query cannot be empty", status_code=400)
 
@@ -39,7 +40,7 @@ async def search_topics(request: QueryRequest):
         ]
         """
         hierarchy = generate_content(prompt)
-        print("Generated hierarchy:", hierarchy)
+        # print("Generated hierarchy:", hierarchy)
     except Exception as e:
         return error_response("LLM error", status_code=500, details=str(e))
 

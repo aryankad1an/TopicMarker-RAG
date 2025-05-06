@@ -72,31 +72,26 @@
     <div class="container">
 
 
-        <div class="card">
-            <h2>Generate MDX from URL</h2>
-            <div class="form-group">
-                <label for="mdxUrl">URL:</label>
-                <input type="text" id="mdxUrl" value="https://docs.crawl4ai.com/">
-            </div>
-            <div class="form-group">
-                <label for="topic">Topic:</label>
-                <input type="text" id="topic" value="Crawl4AI: A Modern Web Crawler">
-            </div>
-            <button onclick="testGenerateMdxFromUrl()">Generate MDX (JSON)</button>
-            <button onclick="testGenerateMdxFromUrlRaw()">Generate MDX (Raw)</button>
-            <div class="response" id="generateMdxResponse"></div>
-        </div>
+
 
         <div class="card">
             <h2>Generate MDX from Multiple URLs</h2>
             <div class="form-group">
-                <label for="mdxUrls">URLs (one per line):</label>
+                <label for="mdxUrls">URLs (one per line, max 5):</label>
                 <textarea id="mdxUrls">https://docs.crawl4ai.com/
 https://docs.crawl4ai.com/core/quickstart/</textarea>
             </div>
             <div class="form-group">
-                <label for="mdxUrlsTopic">Topic:</label>
-                <input type="text" id="mdxUrlsTopic" value="Crawl4AI: A Comprehensive Guide">
+                <label for="mdxUrlsSelectedTopic">Selected Topic (subtopic):</label>
+                <input type="text" id="mdxUrlsSelectedTopic" value="Crawl4AI Quickstart">
+            </div>
+            <div class="form-group">
+                <label for="mdxUrlsMainTopic">Main Topic:</label>
+                <input type="text" id="mdxUrlsMainTopic" value="Crawl4AI Documentation">
+            </div>
+            <div class="form-group">
+                <label for="useLlmKnowledgeUrls">Use LLM Knowledge if Crawling Fails:</label>
+                <input type="checkbox" id="useLlmKnowledgeUrls" checked style="width: auto;">
             </div>
             <button onclick="testGenerateMdxFromUrls()">Generate MDX (JSON)</button>
             <button onclick="testGenerateMdxFromUrlsRaw()">Generate MDX (Raw)</button>
@@ -135,77 +130,7 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
 
 
 
-        async function testGenerateMdxFromUrl() {
-            const url = document.getElementById('mdxUrl').value;
-            const topic = document.getElementById('topic').value;
-            const responseElement = document.getElementById('generateMdxResponse');
 
-            responseElement.textContent = 'Loading...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/generate-mdx-from-url`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ url, topic }),
-                    mode: 'cors'
-                });
-
-                const data = await response.json();
-
-                // Display a preview of the MDX content
-                if (data.status === 'success' && data.mdx_content) {
-                    const mdxPreview = data.mdx_content.substring(0, 500) + '...';
-                    const fullResponse = { ...data, mdx_content: mdxPreview };
-                    responseElement.textContent = JSON.stringify(fullResponse, null, 2);
-
-                    // Create a download link for the full MDX content
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = URL.createObjectURL(new Blob([data.mdx_content], { type: 'text/plain' }));
-                    downloadLink.download = `${topic.replace(/\s+/g, '_')}.mdx`;
-                    downloadLink.textContent = 'Download MDX File';
-                    downloadLink.style.display = 'block';
-                    downloadLink.style.marginTop = '10px';
-                    responseElement.appendChild(downloadLink);
-                } else {
-                    responseElement.textContent = JSON.stringify(data, null, 2);
-                }
-            } catch (error) {
-                responseElement.textContent = `Error: ${error.message}`;
-            }
-        }
-        async function testGenerateMdxFromUrlRaw() {
-            const url = document.getElementById('mdxUrl').value;
-            const topic = document.getElementById('topic').value;
-            const responseElement = document.getElementById('generateMdxResponse');
-
-            responseElement.textContent = 'Loading...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/generate-mdx-from-url-raw`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'text/plain'
-                    },
-                    body: JSON.stringify({ url, topic }),
-                    mode: 'cors'
-                });
-
-                // Get the raw text response
-                const mdxContent = await response.text();
-
-                // Display the MDX content
-                responseElement.textContent = mdxContent;
-
-                // Create a download link for the MDX content
-                createMdxDownloadLink(mdxContent, topic, responseElement);
-            } catch (error) {
-                responseElement.textContent = `Error: ${error.message}`;
-            }
-        }
 
         async function testSingleTopic() {
             const topic = document.getElementById('singleTopic').value;
@@ -283,7 +208,9 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
         async function testGenerateMdxFromUrls() {
             const urlsText = document.getElementById('mdxUrls').value;
             const urls = urlsText.split('\n').filter(url => url.trim() !== '');
-            const topic = document.getElementById('mdxUrlsTopic').value;
+            const selectedTopic = document.getElementById('mdxUrlsSelectedTopic').value;
+            const mainTopic = document.getElementById('mdxUrlsMainTopic').value;
+            const useLlmKnowledge = document.getElementById('useLlmKnowledgeUrls').checked;
             const responseElement = document.getElementById('generateMdxUrlsResponse');
 
             responseElement.textContent = 'Loading...';
@@ -295,7 +222,12 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ urls, topic }),
+                    body: JSON.stringify({
+                        urls,
+                        selected_topic: selectedTopic,
+                        main_topic: mainTopic,
+                        use_llm_knowledge: useLlmKnowledge
+                    }),
                     mode: 'cors'
                 });
 
@@ -308,7 +240,7 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
                     responseElement.textContent = JSON.stringify(fullResponse, null, 2);
 
                     // Create a download link for the full MDX content
-                    createMdxDownloadLink(data.mdx_content, topic, responseElement);
+                    createMdxDownloadLink(data.mdx_content, selectedTopic, responseElement);
                 } else {
                     responseElement.textContent = JSON.stringify(data, null, 2);
                 }
@@ -320,7 +252,9 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
         async function testGenerateMdxFromUrlsRaw() {
             const urlsText = document.getElementById('mdxUrls').value;
             const urls = urlsText.split('\n').filter(url => url.trim() !== '');
-            const topic = document.getElementById('mdxUrlsTopic').value;
+            const selectedTopic = document.getElementById('mdxUrlsSelectedTopic').value;
+            const mainTopic = document.getElementById('mdxUrlsMainTopic').value;
+            const useLlmKnowledge = document.getElementById('useLlmKnowledgeUrls').checked;
             const responseElement = document.getElementById('generateMdxUrlsResponse');
 
             responseElement.textContent = 'Loading...';
@@ -332,7 +266,12 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
                         'Content-Type': 'application/json',
                         'Accept': 'text/plain'
                     },
-                    body: JSON.stringify({ urls, topic }),
+                    body: JSON.stringify({
+                        urls,
+                        selected_topic: selectedTopic,
+                        main_topic: mainTopic,
+                        use_llm_knowledge: useLlmKnowledge
+                    }),
                     mode: 'cors'
                 });
 
@@ -343,7 +282,7 @@ https://docs.crawl4ai.com/core/quickstart/</textarea>
                 responseElement.textContent = mdxContent;
 
                 // Create a download link for the MDX content
-                createMdxDownloadLink(mdxContent, topic, responseElement);
+                createMdxDownloadLink(mdxContent, selectedTopic, responseElement);
             } catch (error) {
                 responseElement.textContent = `Error: ${error.message}`;
             }

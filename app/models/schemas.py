@@ -17,7 +17,11 @@ class MDXResponse(BaseModel):
 
 class RefineRequest(BaseModel):
     mdx: str
+    selected_text: str
+    selected_topic: str
+    main_topic: str
     question: str
+    topic: str = None  # For backward compatibility
 
 class RefineResponse(BaseModel):
     answer: str
@@ -25,25 +29,31 @@ class RefineResponse(BaseModel):
 # Enhanced refine request with selected text and topic
 class RefineWithSelectionRequest(BaseModel):
     mdx: str
-    question: str
     selected_text: str
-    topic: str
+    selected_topic: str
+    main_topic: str
+    question: str
+    topic: str = None  # For backward compatibility
 
 # Refine with crawling request
 class RefineWithCrawlingRequest(BaseModel):
     mdx: str
-    question: str
     selected_text: str
-    topic: str
+    selected_topic: str
+    main_topic: str
+    question: str
     num_results: int = 2
+    topic: str = None  # For backward compatibility
 
 # Refine with specific URLs request
 class RefineWithURLsRequest(BaseModel):
     mdx: str
-    question: str
     selected_text: str
-    topic: str
+    selected_topic: str
+    main_topic: str
+    question: str
     urls: List[str]
+    topic: str = None  # For backward compatibility
 
 class TopicItem(BaseModel):
     topic: str
@@ -72,8 +82,14 @@ class SearchRequest(BaseModel):
     top_k: int = 2
 
 class SingleTopicRequest(BaseModel):
-    topic: str
+    topic: str = None
+    selected_topic: str = None
+    main_topic: str = None
     num_results: int = 2
+
+class LLMOnlyRequest(BaseModel):
+    selected_topic: str
+    main_topic: str
 
 
 
@@ -84,7 +100,9 @@ class GenerateMDXFromURLRequest(BaseModel):
 
 class GenerateMDXFromURLsRequest(BaseModel):
     urls: List[str]
-    topic: str
+    topic: str = None
+    selected_topic: str
+    main_topic: str
     use_llm_knowledge: bool = True
 
 class MDXContent(BaseModel):

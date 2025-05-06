@@ -114,17 +114,47 @@ def create_mdx_prompt(topic: str, subtopic: str, relevant_content: str) -> str:
     """
     Generates a refined prompt that ensures a single valid MDX code block,
     including front matter and headings. The output can be directly rendered.
+
+    Args:
+        topic: The main topic
+        subtopic: The selected subtopic
+        relevant_content: The content to include in the MDX
+
+    Returns:
+        A prompt for the LLM to generate MDX content
     """
-    return f"""You are a documentation formatter.
+    import datetime
+    current_date = datetime.datetime.now().strftime('%Y-%m-%d')
+
+    return f"""You are a documentation formatter specializing in MDX format.
 Please generate a single MDX code block that starts with ```mdx, includes a front matter block (using triple dashes),
 and then the headings and body in properly formatted MDX, ending with triple backticks.
+
 Do not include any extra backticks or code blocks outside the main one.
 Use the content provided below as the main body.
 
-Topic: {topic}
-Subtopic: {subtopic}
+Main Topic: {topic}
+Selected Topic (Subtopic): {subtopic}
 
-Relevant content:
+Your response MUST be valid MDX format starting with:
+```mdx
+---
+title: "{subtopic}"
+description: "Comprehensive guide about {subtopic} in {topic}"
+date: "{current_date}"
+main_topic: "{topic}"
+---
+
+# {subtopic}
+
+Then continue with well-structured content about the subtopic, making sure to explain how it relates to the main topic {topic}.
+Make sure to maintain proper MDX formatting with:
+- Proper heading hierarchy (##, ###, etc.)
+- Paragraphs separated by double newlines
+- Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
+- Code blocks using triple backticks with language specification if applicable
+
+Relevant content to use:
 {relevant_content}
 """
 
@@ -133,27 +163,36 @@ async def generate_mdx_document_async(urls: list, topics_data: list) -> str:
     Crawl the given list of URLs using crawl4ai, extract content relevant to each subtopic in topics_data,
     and convert it to a well-formatted MDX string using the generate_content function.
     This is the async version of the function.
+
+    Args:
+        urls: List of URLs to crawl
+        topics_data: List of dictionaries containing main topics and their subtopics
+
+    Returns:
+        A well-formatted MDX string
     """
     mdx_output = "# Lesson Plan\n\n"
     # Crawl all URLs at once using crawl4ai
     scraped_data = await crawl_urls_async(urls)
-    # print(scraped_data)
 
     for topic_block in topics_data:
+        # The main topic
         topic = topic_block["topic"]
         subtopics = topic_block["subtopics"]
         mdx_output += f"## {topic}\n\n"
 
         for sub in subtopics:
-            print(f"Processing subtopic: {sub}")
+            print(f"Processing subtopic: {sub} in main topic: {topic}")
             all_relevant_content = ""
 
             # Gather relevant content from each crawled page using Gemini LLM
             for url, content in scraped_data.items():
                 if isinstance(content, str) and not content.startswith("Error scraping"):
                     try:
-                        # Use Gemini LLM to extract relevant content for the subtopic
-                        prompt = f"Extract content relevant to the subtopic '{sub}' from the following markdown:\n\n{content}"
+                        # Use Gemini LLM to extract relevant content for the subtopic, considering the main topic
+                        prompt = f"""Extract content relevant to the subtopic '{sub}' which is part of the main topic '{topic}'
+                        from the following markdown. Focus on content that explains the relationship between '{sub}' and '{topic}':\n\n{content}"""
+
                         print(f"Extracting content for subtopic '{sub}' from {url[:50]}...")
                         relevant_content = generate_content(prompt)
                         all_relevant_content += clean_markdown(relevant_content) + "\n"
@@ -164,13 +203,51 @@ async def generate_mdx_document_async(urls: list, topics_data: list) -> str:
             if all_relevant_content.strip():
                 try:
                     prompt = create_mdx_prompt(topic, sub, all_relevant_content)
-                    print(f"Generating MDX for subtopic '{sub}'...")
+                    print(f"Generating MDX for subtopic '{sub}' in main topic '{topic}'...")
                     generated_mdx = generate_content(prompt)
                     mdx_output += clean_markdown(generated_mdx) + "\n\n"
                 except Exception as e:
-                    mdx_output += f"*Error generating content for this subtopic: {e}.*\n\n"
+                    mdx_output += f"*Error generating content for subtopic '{sub}' in main topic '{topic}': {e}.*\n\n"
             else:
-                mdx_output += "*Content not found for this subtopic.*\n\n"
+                # If no content was found, try to generate content using the LLM's knowledge
+                try:
+                    import datetime
+                    current_date = datetime.datetime.now().strftime('%Y-%m-%d')
+
+                    fallback_prompt = f"""
+                    You are a documentation writer specializing in MDX format.
+                    Create a comprehensive MDX document about the selected topic: {sub}, which is part of the main topic: {topic}.
+
+                    Use your knowledge to create content about this topic. Do not make up information.
+
+                    IMPORTANT: DO NOT wrap your response in ```mdx code blocks. I need the raw MDX content directly.
+
+                    Your response MUST be valid MDX format starting with:
+                    ---
+                    title: "{sub}"
+                    description: "Comprehensive guide about {sub} in {topic}"
+                    date: "{current_date}"
+                    main_topic: "{topic}"
+                    ---
+
+                    # {sub}
+
+                    Then continue with well-structured content about the subtopic, making sure to explain how it relates to the main topic {topic}.
+                    Include:
+                    - Clear explanations
+                    - Examples where appropriate
+                    - Code snippets if relevant
+                    - Proper headings and subheadings
+                    - Lists and tables where they help organize information
+
+                    Make sure the content is comprehensive, accurate, and well-organized.
+                    """
+
+                    print(f"No content found for subtopic '{sub}', using LLM knowledge...")
+                    fallback_content = generate_content(fallback_prompt)
+                    mdx_output += clean_markdown(fallback_content) + "\n\n"
+                except Exception as e:
+                    mdx_output += f"*Content not found for subtopic '{sub}' in main topic '{topic}', and fallback generation failed: {e}.*\n\n"
 
     return mdx_output
 
@@ -182,12 +259,14 @@ def generate_mdx_document(urls: list, topics_data: list) -> str:
     """
     return asyncio.run(generate_mdx_document_async(urls, topics_data))
 
-def find_relevant_websites(topic: str, num_results: int = 2) -> list:
+def find_relevant_websites(topic: str, main_topic: str = None, question: str = None, num_results: int = 2) -> list:
     """
-    Find relevant websites for a given topic.
+    Find relevant websites for a given topic, emphasizing the importance of main_topic when available.
 
     Args:
-        topic: The topic to find websites for
+        topic: The selected topic (subtopic) to find websites for
+        main_topic: The main topic that the selected topic belongs to (important for context)
+        question: An optional question to further refine the search
         num_results: Number of websites to find
 
     Returns:
@@ -198,28 +277,67 @@ def find_relevant_websites(topic: str, num_results: int = 2) -> list:
         from googlesearch import search
         websites = []
 
-        # Search for official websites or documentation
-        for url in search(f"{topic} official site OR documentation", num_results=num_results):
+        # Create search queries based on available parameters, always prioritizing main_topic when available
+        if main_topic:
+            # Always include main_topic in the base query for better context
+            base_query = f"{topic} {main_topic}"
+            # Also create a more specific query that emphasizes the relationship
+            context_query = f"{topic} in context of {main_topic}"
+        else:
+            base_query = topic
+            context_query = None
+
+        # Search for official websites or documentation with main_topic context
+        doc_query = f"{base_query} official site OR documentation"
+        if question:
+            doc_query = f"{base_query} {question} official site OR documentation"
+
+        for url in search(doc_query, num_results=num_results):
             websites.append(url)
 
-        # Search for recent news or updates
-        for url in search(f"{topic} latest news OR updates 2025", num_results=num_results):
+        # If we have main_topic, prioritize the relationship search
+        if main_topic:
+            relation_query = f"{topic} in {main_topic}"
+            if question:
+                relation_query = f"{topic} in {main_topic} {question}"
+
+            for url in search(relation_query, num_results=num_results):
+                if url not in websites:  # Avoid duplicates
+                    websites.append(url)
+
+        # Search for recent news or updates with main_topic context
+        if main_topic:
+            news_query = f"{topic} {main_topic} latest news OR updates 2025"
+        else:
+            news_query = f"{topic} latest news OR updates 2025"
+
+        if question:
+            news_query = f"{base_query} {question} latest information"
+
+        for url in search(news_query, num_results=num_results):
             if url not in websites:  # Avoid duplicates
                 websites.append(url)
+
+        # If we have context_query (from main_topic), do an additional search
+        if context_query and len(websites) < num_results * 3:
+            for url in search(context_query, num_results=num_results):
+                if url not in websites:  # Avoid duplicates
+                    websites.append(url)
 
         return websites
     except Exception as e:
         print(f"Error finding relevant websites: {e}")
         return []
 
-async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> dict:
+async def generate_single_topic_mdx_async(topic: str, main_topic: str = None, num_results: int = 2) -> dict:
     """
     Generate MDX content for a single topic, checking if the LLM has up-to-date information first.
     If not, find and crawl relevant websites for the latest information.
     This is the async version of the function.
 
     Args:
-        topic: The topic to generate content for
+        topic: The selected topic (subtopic) to generate content for
+        main_topic: The main topic that the selected topic belongs to (critical for proper context)
         num_results: Number of search results to use
 
     Returns:
@@ -230,6 +348,7 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
     # First, check if the LLM has up-to-date information on the topic
     currency_check_prompt = f"""
     Do you have up-to-date information about the topic: "{topic}"?
+    {f"This topic is part of the broader subject: {main_topic} (this context is critical for accurate information)" if main_topic else ""}
 
     Please respond with only "YES" if you have current information (from the last 6 months),
     or "NO" if your information might be outdated or incomplete.
@@ -249,7 +368,11 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
 
     if not has_current_info:
         # Find relevant websites to crawl
-        relevant_websites = find_relevant_websites(topic, num_results=2)
+        relevant_websites = find_relevant_websites(
+            topic=topic,
+            main_topic=main_topic,
+            num_results=2
+        )
         crawled_websites = relevant_websites
 
         if relevant_websites:
@@ -266,7 +389,16 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
     if not has_current_info or len(all_content.strip()) < 500:  # If we don't have much content
         urls = []
         from googlesearch import search
-        for url in search(topic, num_results=num_results):
+        # Create a search query that combines topic and main_topic
+        search_query = topic
+        if main_topic:
+            search_query = f"{topic} {main_topic}"
+
+        # Add a more specific search for the relationship between topic and main_topic
+        if main_topic:
+            search_query += f" OR {topic} in {main_topic}"
+
+        for url in search(search_query, num_results=num_results):
             if url in crawled_websites:
                 continue  # Skip if we already crawled this URL
             urls.append(url)
@@ -286,8 +418,15 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
     import datetime
     current_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
+    # Create a description that includes the main topic if available
+    description = f"Comprehensive guide about {topic}"
+    if main_topic:
+        description = f"Comprehensive guide about {topic} in {main_topic}"
+
     prompt = f"""
-    You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+    You are a documentation writer specializing in MDX format.
+    Create a comprehensive MDX document about the selected topic: {topic}
+    {f"This selected topic is part of the main topic: {main_topic}. It is CRITICAL that you focus on how {topic} relates to and fits within the context of {main_topic}." if main_topic else ""}
 
     {"Use the following content as reference:" if all_content else "Use your knowledge to create content about this topic:"}
     {all_content}
@@ -297,8 +436,9 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
     Your response MUST be valid MDX format starting with:
     ---
     title: "{topic}"
-    description: "Comprehensive guide about {topic}"
+    description: "{description}"
     date: "{current_date}"
+    {f'main_topic: "{main_topic}"' if main_topic else ''}
     ---
 
     Then include a main heading with the topic name, followed by well-structured content with:
@@ -307,6 +447,7 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
     - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
     - Code blocks using triple backticks with language specification if applicable
     - A summary or conclusion section at the end
+    {f'- IMPORTANT: Throughout the content, emphasize how {topic} relates to {main_topic} and why it is important in that context' if main_topic else ''}
 
     CRITICAL FORMATTING REQUIREMENTS:
     - DO NOT include ```mdx and ``` around your content
@@ -327,13 +468,16 @@ async def generate_single_topic_mdx_async(topic: str, num_results: int = 2) -> d
 
         # Ensure the content has proper front matter
         if not mdx_content.startswith("---"):
-            mdx_content = f"""---
+            front_matter = f"""---
 title: "{topic}"
-description: "Comprehensive guide about {topic}"
+description: "{description}"
 date: "{current_date}"
----
+"""
+            if main_topic:
+                front_matter += f'main_topic: "{main_topic}"\n'
+            front_matter += "---\n\n"
 
-{mdx_content}"""
+            mdx_content = front_matter + mdx_content
 
         # Add a newline after the front matter if needed
         if "---\n---" in mdx_content:
@@ -359,20 +503,21 @@ date: "{current_date}"
             "has_current_info": has_current_info
         }
 
-def generate_single_topic_mdx(topic: str, num_results: int = 2) -> dict:
+def generate_single_topic_mdx(topic: str, main_topic: str = None, num_results: int = 2) -> dict:
     """
     Generate MDX content for a single topic, checking if the LLM has up-to-date information first.
     If not, find and crawl relevant websites for the latest information.
     This is a synchronous wrapper around the async function.
 
     Args:
-        topic: The topic to generate content for
+        topic: The selected topic (subtopic) to generate content for
+        main_topic: The main topic that the selected topic belongs to
         num_results: Number of search results to use
 
     Returns:
         Dictionary with MDX formatted content and metadata
     """
-    return asyncio.run(generate_single_topic_mdx_async(topic, num_results))
+    return asyncio.run(generate_single_topic_mdx_async(topic, main_topic, num_results))
 
 
 
@@ -564,19 +709,22 @@ def generate_mdx_from_url(url: str, topic: str, use_llm_knowledge: bool = True) 
     """
     return asyncio.run(generate_mdx_from_url_async(url, topic, use_llm_knowledge))
 
-async def generate_mdx_from_urls_async(urls: list, topic: str, use_llm_knowledge: bool = True) -> str:
+async def generate_mdx_from_urls_async(urls: list, selected_topic: str, main_topic: str, topic: str = None, use_llm_knowledge: bool = True) -> str:
     """
     Generate MDX content from multiple URLs using crawl4ai and LLM.
     Similar to generate_single_topic_mdx_async but for specific URLs.
 
     Args:
-        urls: List of URLs to crawl
-        topic: The topic for the MDX content
+        urls: List of URLs to crawl (1 to 5 URLs)
+        selected_topic: The subtopic to focus on
+        main_topic: The main topic that the selected topic belongs to (critical for proper context)
+        topic: Legacy parameter, kept for backward compatibility (not used)
         use_llm_knowledge: Whether to use the LLM's existing knowledge if crawling fails
 
     Returns:
         The MDX content
     """
+    # Note: topic parameter is kept for backward compatibility but not used
     # Disable debugger for this operation
     os.environ["NODE_OPTIONS"] = "--no-warnings --no-deprecation"
 
@@ -605,12 +753,14 @@ async def generate_mdx_from_urls_async(urls: list, topic: str, use_llm_knowledge
 
         # Adjust prompt based on whether we have content or need to use LLM knowledge
         if not all_content.strip():
-            reference_text = f"Use your knowledge to create content about this topic: {topic}"
+            reference_text = f"Use your knowledge to create content about the selected topic: {selected_topic} which is part of the main topic: {main_topic}"
         else:
             reference_text = f"Use the following content as reference:\n{all_content}"
 
         prompt = f"""
-        You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+        You are a documentation writer specializing in MDX format.
+        Create a comprehensive MDX document about the selected topic: {selected_topic}
+        This selected topic is part of the main topic: {main_topic}. It is CRITICAL that you focus on how {selected_topic} relates to and fits within the context of {main_topic}.
 
         {reference_text}
 
@@ -618,8 +768,8 @@ async def generate_mdx_from_urls_async(urls: list, topic: str, use_llm_knowledge
 
         Your response MUST be valid MDX format starting with:
         ---
-        title: "{topic}"
-        description: "Comprehensive guide about {topic}"
+        title: "{selected_topic}"
+        description: "Comprehensive guide about {selected_topic} - Part of {main_topic}"
         date: "{current_date}"
         ---
 
@@ -629,6 +779,7 @@ async def generate_mdx_from_urls_async(urls: list, topic: str, use_llm_knowledge
         - Lists using - or * for unordered lists and 1. 2. etc. for ordered lists
         - Code blocks using triple backticks with language specification if applicable
         - A summary or conclusion section at the end
+        - IMPORTANT: Throughout the content, emphasize how {selected_topic} relates to {main_topic} and why it is important in that context
 
         CRITICAL FORMATTING REQUIREMENTS:
         - DO NOT include ```mdx and ``` around your content
@@ -649,8 +800,8 @@ async def generate_mdx_from_urls_async(urls: list, topic: str, use_llm_knowledge
         # Ensure the content has proper front matter
         if not mdx_content.startswith("---"):
             mdx_content = f"""---
-title: "{topic}"
-description: "Comprehensive guide about {topic}"
+title: "{selected_topic}"
+description: "Comprehensive guide about {selected_topic} - Part of {main_topic}"
 date: "{current_date}"
 ---
 
@@ -678,7 +829,9 @@ date: "{current_date}"
                 current_date = datetime.datetime.now().strftime('%Y-%m-%d')
 
                 prompt = f"""
-                You are a documentation writer specializing in MDX format. Create a comprehensive MDX document about: {topic}.
+                You are a documentation writer specializing in MDX format.
+                Create a comprehensive MDX document about the selected topic: {selected_topic}
+                This selected topic is part of the main topic: {main_topic}
 
                 Use your knowledge to create content about this topic.
 
@@ -686,8 +839,8 @@ date: "{current_date}"
 
                 Your response MUST be valid MDX format starting with:
                 ---
-                title: "{topic}"
-                description: "Comprehensive guide about {topic}"
+                title: "{selected_topic}"
+                description: "Comprehensive guide about {selected_topic} - Part of {main_topic}"
                 date: "{current_date}"
                 ---
 
@@ -717,8 +870,8 @@ date: "{current_date}"
                 # Ensure the content has proper front matter
                 if not mdx_content.startswith("---"):
                     mdx_content = f"""---
-title: "{topic}"
-description: "Comprehensive guide about {topic}"
+title: "{selected_topic}"
+description: "Comprehensive guide about {selected_topic} - Part of {main_topic}"
 date: "{current_date}"
 ---
 
@@ -741,17 +894,19 @@ date: "{current_date}"
         else:
             return f"Error generating MDX from URLs: {e}"
 
-def generate_mdx_from_urls(urls: list, topic: str, use_llm_knowledge: bool = True) -> str:
+def generate_mdx_from_urls(urls: list, selected_topic: str, main_topic: str, topic: str = None, use_llm_knowledge: bool = True) -> str:
     """
     Generate MDX content from multiple URLs using crawl4ai and LLM.
     This is a synchronous wrapper around the async function.
 
     Args:
-        urls: List of URLs to crawl
-        topic: The topic for the MDX content
+        urls: List of URLs to crawl (1 to 5 URLs)
+        selected_topic: The subtopic to focus on
+        main_topic: The main topic that the selected topic belongs to
+        topic: Legacy parameter, kept for backward compatibility (not used)
         use_llm_knowledge: Whether to use the LLM's existing knowledge if crawling fails
 
     Returns:
         The MDX content
     """
-    return asyncio.run(generate_mdx_from_urls_async(urls, topic, use_llm_knowledge))
+    return asyncio.run(generate_mdx_from_urls_async(urls, selected_topic, main_topic, topic, use_llm_knowledge))

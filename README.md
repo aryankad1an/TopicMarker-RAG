@@ -99,66 +99,64 @@ The API will be available at `http://localhost:8000`.
 #### MDX Generation
 
 - **POST /rag/single-topic**
-  - Input: `{"topic": "string", "num_results": int}` (default num_results: 2)
+  - Input: `{"selected_topic": "string", "main_topic": "string", "num_results": int}` (default num_results: 2)
   - Returns: Comprehensive MDX content for a single topic
   - Example: `{"status": "success", "data": {"mdx_content": "string", "crawled_websites": [...]}}`
 
 - **POST /rag/single-topic-raw**
-  - Input: `{"topic": "string", "num_results": int}` (default num_results: 2)
+  - Input: `{"selected_topic": "string", "main_topic": "string", "num_results": int}` (default num_results: 2)
   - Returns: Raw MDX content as plain text (not JSON)
+
+- **POST /rag/generate-mdx-llm-only**
+  - Input: `{"selected_topic": "string", "main_topic": "string"}`
+  - Returns: MDX content generated using only LLM knowledge (no web crawling)
+  - Example: `{"status": "success", "data": {"mdx_content": "string"}}`
+
+- **POST /rag/generate-mdx-llm-only-raw**
+  - Input: `{"selected_topic": "string", "main_topic": "string"}`
+  - Returns: Raw MDX content generated using only LLM knowledge as plain text (not JSON)
 
 #### URL-based MDX Generation
 
-- **POST /rag/generate-mdx-from-url**
-  - Input: `{"url": "string", "topic": "string", "use_llm_knowledge": bool}`
-  - Returns: MDX content generated from the specified URL
-  - Example: `{"status": "success", "url": "string", "topic": "string", "mdx_content": "string"}`
-
-- **POST /rag/generate-mdx-from-url-raw**
-  - Input: `{"url": "string", "topic": "string", "use_llm_knowledge": bool}`
-  - Returns: Raw MDX content as plain text (not JSON)
-
 - **POST /rag/generate-mdx-from-urls**
-  - Input: `{"urls": ["string"], "topic": "string", "use_llm_knowledge": bool}`
+  - Input: `{"urls": ["string"], "selected_topic": "string", "main_topic": "string", "topic": "string" (optional), "use_llm_knowledge": bool}`
+  - URLs: 1 to 5 URLs to crawl
+  - selected_topic: The subtopic to focus on
+  - main_topic: The main topic that the selected topic belongs to
   - Returns: MDX content generated from multiple URLs
-  - Example: `{"status": "success", "urls": [...], "topic": "string", "mdx_content": "string"}`
+  - Example: `{"status": "success", "urls": [...], "selected_topic": "string", "main_topic": "string", "mdx_content": "string"}`
 
 - **POST /rag/generate-mdx-from-urls-raw**
-  - Input: `{"urls": ["string"], "topic": "string", "use_llm_knowledge": bool}`
+  - Input: `{"urls": ["string"], "selected_topic": "string", "main_topic": "string", "topic": "string" (optional), "use_llm_knowledge": bool}`
   - Returns: Raw MDX content as plain text (not JSON)
 
 #### Content Refinement
 
-- **POST /rag/refine**
-  - Input: `{"mdx": "string", "question": "string"}`
-  - Returns: Refined content using the LLM
-  - Example: `{"status": "success", "data": {"answer": "string"}}`
-
 - **POST /rag/refine-with-selection**
-  - Input: `{"mdx": "string", "question": "string", "selected_text": "string", "topic": "string"}`
+  - Input: `{"mdx": "string", "selected_text": "string", "selected_topic": "string", "main_topic": "string", "question": "string"}`
   - Returns: Refined content using the LLM with selected text and topic context
   - Example: `{"status": "success", "data": {"answer": "string"}}`
 
 - **POST /rag/refine-with-selection-raw**
-  - Input: `{"mdx": "string", "question": "string", "selected_text": "string", "topic": "string"}`
+  - Input: `{"mdx": "string", "selected_text": "string", "selected_topic": "string", "main_topic": "string", "question": "string"}`
   - Returns: Raw refined content as plain text (not JSON)
 
 - **POST /rag/refine-with-crawling**
-  - Input: `{"mdx": "string", "question": "string", "selected_text": "string", "topic": "string", "num_results": int}` (default num_results: 2)
+  - Input: `{"mdx": "string", "selected_text": "string", "selected_topic": "string", "main_topic": "string", "question": "string", "num_results": int}` (default num_results: 2)
   - Returns: Refined content by first crawling relevant websites and then using the LLM
   - Example: `{"status": "success", "data": {"answer": "string", "crawled_websites": [...]}}`
 
 - **POST /rag/refine-with-crawling-raw**
-  - Input: `{"mdx": "string", "question": "string", "selected_text": "string", "topic": "string", "num_results": int}` (default num_results: 2)
+  - Input: `{"mdx": "string", "selected_text": "string", "selected_topic": "string", "main_topic": "string", "question": "string", "num_results": int}` (default num_results: 2)
   - Returns: Raw refined content as plain text (not JSON)
 
 - **POST /rag/refine-with-urls**
-  - Input: `{"mdx": "string", "question": "string", "selected_text": "string", "topic": "string", "urls": ["string"]}`
+  - Input: `{"mdx": "string", "selected_text": "string", "selected_topic": "string", "main_topic": "string", "question": "string", "urls": ["string"]}`
   - Returns: Refined content by crawling specific URLs provided by the user
   - Example: `{"status": "success", "data": {"answer": "string", "crawled_websites": [...]}}`
 
 - **POST /rag/refine-with-urls-raw**
-  - Input: `{"mdx": "string", "question": "string", "selected_text": "string", "topic": "string", "urls": ["string"]}`
+  - Input: `{"mdx": "string", "selected_text": "string", "selected_topic": "string", "main_topic": "string", "question": "string", "urls": ["string"]}`
   - Returns: Raw refined content as plain text (not JSON)
 
 
